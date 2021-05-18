@@ -2,7 +2,7 @@ mod events;
 mod logentry;
 mod loglevel;
 
-use std::io;
+use std::{io, env, process, fs};
 use tui::Terminal;
 use tui::backend::TermionBackend;
 use tui::widgets::{Borders, Block, Row, TableState, Table};
@@ -16,6 +16,7 @@ use unicode_width::UnicodeWidthStr;
 use std::collections::HashSet;
 use unicode_segmentation::{GraphemeIndices, UnicodeSegmentation};
 use tui::text::Text;
+use crate::logentry::LogEntry;
 
 pub struct StatefulTable {
     viewport: Rect,
@@ -27,16 +28,16 @@ pub struct StatefulTable {
 }
 
 impl StatefulTable {
-    fn new() -> StatefulTable {
-        let rows: Vec<Vec<String>> = (0..10_000).map(|i| {
+    fn new(model: &Vec<LogEntry>) -> StatefulTable {
+        let rows: Vec<Vec<String>> = model.iter().enumerate().map(|(idx, entry)| {
             vec![
-                i.to_string(),
-                "2021-08-12 14:14:15.333".to_string(),
-                i.to_string(),
-                i.to_string(),
-                "D".to_string(),
-                "SomeApplication".to_string(),
-                "Very long string 1. Very long string 2. Very long string 3. Very long string 4. Very long string 5. Very long string 6. Very long string 7. Very long string 8. Very long string 9. Very long string 10.".to_string()
+                (idx + 1).to_string(),
+                entry.timestamp.format("%F %H:%M:%S%.3f").to_string(),
+                entry.process_id.to_string(),
+                entry.thread_id.to_string(),
+                entry.log_level.to_string(),
+                entry.tag.to_string(),
+                entry.message.to_string(),
             ]
         }).collect();
 
@@ -99,7 +100,7 @@ impl StatefulTable {
         self.column_offset = self.column_offset.saturating_sub(1)
     }
 
-    pub fn enter(&mut self) {
+    pub fn wrap_message(&mut self) {
         if let Some(selected) = self.state.selected() {
             if self.wrapped.contains(&selected) {
                 self.wrapped.remove(&selected);
@@ -111,8 +112,29 @@ impl StatefulTable {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    let input_file = env::args().nth(1).unwrap_or_else(|| {
+        eprintln!("No input file specified");
+        process::exit(1)
+    });
+
+    // let input = DATA.to_string();
+    let input =
+        fs::read_to_string(&input_file).expect(&format!("Failed to read file {}", &input_file));
+
+    let start = std::time::Instant::now();
+    let model = input
+        .lines()
+        .filter_map(|line| line.parse().ok())
+        .collect::<Vec<LogEntry>>();
+
+    println!(
+        "Parsed {} entries, elapsed {}ms",
+        model.len(),
+        start.elapsed().as_millis()
+    );
+
     let events = Events::new();
-    let mut table = StatefulTable::new();
+    let mut table = StatefulTable::new(&model);
 
     let stdout = io::stdout().into_raw_mode()?;
     let stdout = MouseTerminal::from(stdout);
@@ -214,7 +236,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
                 Key::Left => { table.left(); }
                 Key::Right => { table.right(); }
-                Key::Char('\n') => { table.enter(); }
+                Key::Char('\n') => { table.wrap_message(); }
                 _ => {
                     // dbg!(key);
                 }
