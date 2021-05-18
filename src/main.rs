@@ -15,6 +15,7 @@ pub struct StatefulTable {
     viewport: Rect,
     state: TableState,
     items: Vec<Vec<String>>,
+    column_offset: usize,
 }
 
 impl StatefulTable {
@@ -27,8 +28,12 @@ impl StatefulTable {
                     format!("Row {}-1", i + 1).to_string(),
                     format!("Row {}-2", i + 1).to_string(),
                     format!("Row {}-3", i + 1).to_string(),
+                    format!("Row {}-4", i + 1).to_string(),
+                    format!("Row {}-5", i + 1).to_string(),
+                    format!("Row {}-6", i + 1).to_string(),
                 ]
             }).collect(),
+            column_offset: 0,
         }
     }
 
@@ -64,6 +69,13 @@ impl StatefulTable {
             .or(Some(0));
         self.state.select(prev_item);
     }
+
+    pub fn right(&mut self) {
+        self.column_offset = self.column_offset.saturating_add(1).min(5)
+    }
+    pub fn left(&mut self) {
+        self.column_offset = self.column_offset.saturating_sub(1)
+    }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -88,8 +100,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             let selected_style = Style::default().add_modifier(Modifier::REVERSED);
             let normal_style = Style::default().bg(Color::Blue);
 
-            let header_cells = ["Header1", "Header2", "Header3"]
+            let header_cells = ["Header1", "Header2", "Header3", "Header4", "Header5", "Header6"]
                 .iter()
+                .skip(table.column_offset)
                 .map(|h| Cell::from(*h).style(Style::default().fg(Color::Red)));
 
             let header = Row::new(header_cells)
@@ -97,7 +110,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .bottom_margin(1);
 
             let rows = table.items.iter().map(|item| {
-                let cells = item.iter().map(|c| Cell::from(c.as_str()));
+                let cells = item.iter().skip(table.column_offset).map(|c| Cell::from(c.as_str()));
                 Row::new(cells)
             });
 
@@ -107,10 +120,13 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .highlight_style(selected_style)
                 .highlight_symbol(">> ")
                 .widths(&[
-                    Constraint::Percentage(50),
-                    Constraint::Length(30),
-                    Constraint::Max(10),
-                ]);
+                    Constraint::Percentage(10),
+                    Constraint::Percentage(10),
+                    Constraint::Percentage(10),
+                    Constraint::Percentage(20),
+                    Constraint::Percentage(20),
+                    Constraint::Percentage(70),
+                ][table.column_offset..]);
             f.render_stateful_widget(t, rects[0], &mut table.state);
         })?;
 
@@ -131,6 +147,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                 Key::PageUp => {
                     table.previous_page();
                 }
+                Key::Left => { table.left(); }
+                Key::Right => { table.right(); }
                 _ => {}
             }
         };
