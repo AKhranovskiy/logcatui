@@ -13,6 +13,9 @@ use std::error::Error;
 use tui::style::{Style, Color, Modifier};
 use tui::widgets::Cell;
 use unicode_width::UnicodeWidthStr;
+use std::collections::HashSet;
+use unicode_segmentation::{GraphemeIndices, UnicodeSegmentation};
+use tui::text::Text;
 
 pub struct StatefulTable {
     viewport: Rect,
@@ -20,6 +23,7 @@ pub struct StatefulTable {
     rows: Vec<Vec<String>>,
     constraints: Vec<Constraint>,
     column_offset: usize,
+    wrapped: HashSet<usize>,
 }
 
 impl StatefulTable {
@@ -51,6 +55,7 @@ impl StatefulTable {
             rows,
             constraints: constraints.iter().map(|w| Constraint::Length(*w as u16)).collect(),
             column_offset: 0,
+            wrapped: HashSet::new(),
         }
     }
 
@@ -88,10 +93,20 @@ impl StatefulTable {
     }
 
     pub fn right(&mut self) {
-        self.column_offset = self.column_offset.saturating_add(1).min(5)
+        self.column_offset = self.column_offset.saturating_add(1).min(6)
     }
     pub fn left(&mut self) {
         self.column_offset = self.column_offset.saturating_sub(1)
+    }
+
+    pub fn enter(&mut self) {
+        if let Some(selected) = self.state.selected() {
+            if self.wrapped.contains(&selected) {
+                self.wrapped.remove(&selected);
+            } else {
+                self.wrapped.insert(selected);
+            }
+        }
     }
 }
 
@@ -121,14 +136,53 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .skip(table.column_offset)
                 .map(|h| Cell::from(*h).style(Style::default().fg(Color::Red)));
 
-            let header = Row::new(header_cells)
-                .style(normal_style)
-                // .bottom_margin(1)
-                ;
+            let header = Row::new(header_cells).style(normal_style);
 
-            let rows = table.rows.iter().map(|item| {
-                let cells = item.iter().skip(table.column_offset).map(|c| Cell::from(c.as_str()));
-                Row::new(cells)
+            let row_without_message_width = table.constraints.iter()
+                .take(table.constraints.len() - 1)
+                .skip(table.column_offset)
+                .map(|v| if let Constraint::Length(l) = v { *l } else { 0u16 })
+                .sum::<u16>();
+
+            let rows = table.rows.iter().enumerate().map(|(idx, row)| {
+                if table.wrapped.contains(&idx) {
+                    let message = row.last().unwrap();
+                    let message_length = UnicodeWidthStr::width(message.as_str()) as u16;
+                    let selector_width = 3u16;
+                    let column_spacing: u16 = (table.constraints.len() - table.column_offset) as u16;
+                    let available_message_width = table.viewport.width - row_without_message_width - selector_width - column_spacing;
+                    if message_length > available_message_width {
+                        let graphemes =
+                            UnicodeSegmentation::graphemes(message.as_str(), true)
+                                .collect::<Vec<&str>>();
+
+                        let chunks = graphemes.chunks(available_message_width as usize - 1);
+                        let height = chunks.len();
+
+                        let message = chunks.map(|s| s.join("")).fold(
+                            String::with_capacity(message_length as usize + height),
+                            |mut r: String, c| {
+                                r.push_str(c.as_str());
+                                r.push('\n');
+                                r
+                            },
+                        );
+                        Row::new(row.iter()
+                            .skip(table.column_offset)
+                            .take(table.constraints.len() - 1 - table.column_offset)
+                            .map(|c| Cell::from(c.as_str()))
+                            .chain(std::iter::once(Cell::from(message.to_string()))))
+                            .height(height as u16)
+                    } else {
+                        Row::new(row.iter()
+                            .skip(table.column_offset)
+                            .map(|c| Cell::from(c.as_str())))
+                    }
+                } else {
+                    Row::new(row.iter()
+                        .skip(table.column_offset)
+                        .map(|c| Cell::from(c.as_str())))
+                }
             });
 
             let t = Table::new(rows)
@@ -160,7 +214,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
                 Key::Left => { table.left(); }
                 Key::Right => { table.right(); }
-                _ => {}
+                Key::Char('\n') => { table.enter(); }
+                _ => {
+                    // dbg!(key);
+                }
             }
         };
     }
