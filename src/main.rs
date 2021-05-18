@@ -1,4 +1,6 @@
 mod events;
+mod logentry;
+mod loglevel;
 
 use std::io;
 use tui::Terminal;
