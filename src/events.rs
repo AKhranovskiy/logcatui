@@ -9,6 +9,7 @@ use std::time::Duration;
 
 use termion::event::Key;
 use termion::input::TermRead;
+use std::sync::mpsc::TryIter;
 
 pub enum Event<I> {
     Input(I),
@@ -79,6 +80,10 @@ impl Events {
             input_handle,
             tick_handle,
         }
+    }
+
+    pub fn next_batch(&self) -> TryIter<'_, Event<Key>> {
+        self.rx.try_iter()
     }
 
     pub fn next(&self) -> Result<Event<Key>, mpsc::RecvError> {

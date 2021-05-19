@@ -1,19 +1,21 @@
-mod events;
-mod logentry;
-mod loglevel;
+use std::{env, error::Error, fs, io, process};
+
+use termion::{event::Key, input::MouseTerminal, raw::IntoRawMode, screen::AlternateScreen};
+use tui::backend::TermionBackend;
+use tui::layout::{Alignment, Constraint, Layout, Rect};
+use tui::layout::Direction::Vertical;
+use tui::style::{Color, Modifier, Style};
+use tui::Terminal;
+use tui::widgets::{Block, Borders, BorderType, Cell, Paragraph, Row, Table, TableState};
+use unicode_segmentation::{GraphemeIndices, UnicodeSegmentation};
+use unicode_width::UnicodeWidthStr;
 
 use crate::events::{Event, Events};
 use crate::logentry::LogEntry;
-use std::{error::Error, io, env, process, fs};
-use termion::{event::Key, input::MouseTerminal, raw::IntoRawMode, screen::AlternateScreen};
-use tui::Terminal;
-use tui::backend::TermionBackend;
-use tui::layout::{Layout, Constraint, Rect, Alignment};
-use tui::style::{Style, Color, Modifier};
-use tui::widgets::{Borders, Block, Cell, Row, TableState, Table, Paragraph, BorderType};
-use unicode_segmentation::{GraphemeIndices, UnicodeSegmentation};
-use unicode_width::UnicodeWidthStr;
-use tui::layout::Direction::Vertical;
+
+mod events;
+mod logentry;
+mod loglevel;
 
 pub struct DisplayData<'a> {
     log_entry: &'a LogEntry,
@@ -171,7 +173,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut fps_counter = fps_counter::FPSCounter::new();
 
-    loop {
+    'main_loop: loop {
         terminal.draw(|f| {
             let chunks = Layout::default()
                 .direction(Vertical)
@@ -195,6 +197,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .map(|h| Cell::from(*h).style(Style::default().fg(Color::Red)));
 
             let header = Row::new(header_cells).style(normal_style);
+
+            let instant = std::time::Instant::now();
 
             let rows = table.display_data.iter().map(|data| {
                 Row::new(
@@ -250,39 +254,51 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .column_spacing(1)
                 .widths(&table.column_constraints[table.column_offset..]);
 
-            f.render_stateful_widget(t, chunks[0], &mut table.state);
+            let table_built = instant.elapsed();
 
-            let bottom_block = Paragraph::new(format!("FPS: {}", fps_counter.tick()))
+            f.render_stateful_widget(t, chunks[0], &mut table.state);
+            let table_rendered = instant.elapsed();
+
+            let bottom_block = Paragraph::new(
+                format!(
+                    "FPS: {}, table built in {}ms, table rendered in {}ms",
+                    fps_counter.tick(),
+                    table_built.as_millis(),
+                    (table_rendered - table_built).as_millis()
+                )
+            )
                 .style(Style::default().fg(Color::LightCyan))
                 .alignment(Alignment::Left);
             f.render_widget(bottom_block, chunks[1]);
         })?;
 
-        if let Event::Input(key) = events.next()? {
-            match key {
-                Key::Char('q') => {
-                    break;
-                }
-                Key::Down => {
-                    table.next();
-                }
-                Key::Up => {
-                    table.previous();
-                }
-                Key::PageDown => {
-                    table.next_page();
-                }
-                Key::PageUp => {
-                    table.previous_page();
-                }
-                Key::Left => { table.left(); }
-                Key::Right => { table.right(); }
-                Key::Char('\n') => { table.wrap_message(); }
-                _ => {
-                    // dbg!(key);
+        for event in events.next_batch() {
+            if let Event::Input(key) = event {
+                match key {
+                    Key::Char('q') | Key::Ctrl('c') => {
+                        break 'main_loop;
+                    }
+                    Key::Down => {
+                        table.next();
+                    }
+                    Key::Up => {
+                        table.previous();
+                    }
+                    Key::PageDown => {
+                        table.next_page();
+                    }
+                    Key::PageUp => {
+                        table.previous_page();
+                    }
+                    Key::Left => { table.left(); }
+                    Key::Right => { table.right(); }
+                    Key::Char('\n') => { table.wrap_message(); }
+                    _ => {
+                        // dbg!(key);
+                    }
                 }
             }
-        };
+        }
     }
 
     Ok(())
