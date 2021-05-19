@@ -8,11 +8,12 @@ use std::{error::Error, io, env, process, fs};
 use termion::{event::Key, input::MouseTerminal, raw::IntoRawMode, screen::AlternateScreen};
 use tui::Terminal;
 use tui::backend::TermionBackend;
-use tui::layout::{Layout, Constraint, Rect};
+use tui::layout::{Layout, Constraint, Rect, Alignment};
 use tui::style::{Style, Color, Modifier};
-use tui::widgets::{Borders, Block, Cell, Row, TableState, Table};
+use tui::widgets::{Borders, Block, Cell, Row, TableState, Table, Paragraph, BorderType};
 use unicode_segmentation::{GraphemeIndices, UnicodeSegmentation};
 use unicode_width::UnicodeWidthStr;
+use tui::layout::Direction::Vertical;
 
 pub struct DisplayData<'a> {
     log_entry: &'a LogEntry,
@@ -168,10 +169,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     let normal_style = Style::default().bg(Color::Blue);
     let selected_style = Style::default().add_modifier(Modifier::REVERSED);
 
+    let mut fps_counter = fps_counter::FPSCounter::new();
+
     loop {
         terminal.draw(|f| {
-            let rects = Layout::default()
-                .constraints([Constraint::Percentage(100)].as_ref())
+            let chunks = Layout::default()
+                .direction(Vertical)
+                .constraints([
+                    Constraint::Min(1),
+                    Constraint::Length(1)
+                ].as_ref())
                 .split(f.size());
 
             table.viewport = Rect::new(0, 0, f.size().width, f.size().height - 4u16);
@@ -237,13 +244,18 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             let t = Table::new(rows)
                 .header(header)
-                .block(Block::default().borders(Borders::ALL).title("Table"))
+                .block(Block::default().borders(Borders::ALL).title(input_file.as_str()))
                 .highlight_style(selected_style)
                 .highlight_symbol(">> ")
                 .column_spacing(1)
                 .widths(&table.column_constraints[table.column_offset..]);
 
-            f.render_stateful_widget(t, rects[0], &mut table.state);
+            f.render_stateful_widget(t, chunks[0], &mut table.state);
+
+            let bottom_block = Paragraph::new(format!("FPS: {}", fps_counter.tick()))
+                .style(Style::default().fg(Color::LightCyan))
+                .alignment(Alignment::Left);
+            f.render_widget(bottom_block, chunks[1]);
         })?;
 
         if let Event::Input(key) = events.next()? {
