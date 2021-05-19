@@ -2,67 +2,92 @@ mod events;
 mod logentry;
 mod loglevel;
 
-use std::{io, env, process, fs};
+use crate::events::{Event, Events};
+use crate::logentry::LogEntry;
+use std::{error::Error, io, env, process, fs};
+use termion::{event::Key, input::MouseTerminal, raw::IntoRawMode, screen::AlternateScreen};
 use tui::Terminal;
 use tui::backend::TermionBackend;
-use tui::widgets::{Borders, Block, Row, TableState, Table};
 use tui::layout::{Layout, Constraint, Rect};
-use termion::{event::Key, input::MouseTerminal, raw::IntoRawMode, screen::AlternateScreen};
-use crate::events::{Event, Events};
-use std::error::Error;
 use tui::style::{Style, Color, Modifier};
-use tui::widgets::Cell;
-use unicode_width::UnicodeWidthStr;
-use std::collections::HashSet;
+use tui::widgets::{Borders, Block, Cell, Row, TableState, Table};
 use unicode_segmentation::{GraphemeIndices, UnicodeSegmentation};
-use tui::text::Text;
-use crate::logentry::LogEntry;
+use unicode_width::UnicodeWidthStr;
 
-pub struct StatefulTable {
-    viewport: Rect,
-    state: TableState,
-    rows: Vec<Vec<String>>,
-    constraints: Vec<Constraint>,
-    column_offset: usize,
-    wrapped: HashSet<usize>,
+pub struct DisplayData<'a> {
+    log_entry: &'a LogEntry,
+    texts: Vec<String>,
+    widths: Vec<usize>,
+    wrapped: bool,
 }
 
-impl StatefulTable {
-    fn new(model: &Vec<LogEntry>) -> StatefulTable {
-        let rows: Vec<Vec<String>> = model.iter().enumerate().map(|(idx, entry)| {
-            vec![
-                (idx + 1).to_string(),
-                entry.timestamp.format("%F %H:%M:%S%.3f").to_string(),
-                entry.process_id.to_string(),
-                entry.thread_id.to_string(),
-                entry.log_level.to_string(),
-                entry.tag.to_string(),
-                entry.message.to_string(),
-            ]
-        }).collect();
+const COLUMN_NUMBER: usize = 7;
+const COLUMN_HEADERS: [&str; COLUMN_NUMBER] = [
+    "#", "Timestamp", "PID", "TID", "Level", "Tag", "Message"
+];
 
-        let constraints = rows.iter().fold([0usize; 7].into(), |widths: Vec<usize>, row| {
-            row.iter()
-                .zip(widths)
-                .map(|(s, w): (&String, usize)| w.max(UnicodeWidthStr::width(s.as_str())))
-                .collect::<Vec<_>>()
-        });
+impl<'a> DisplayData<'a> {
+    fn new(index: usize, entry: &'a LogEntry) -> Self {
+        let texts = vec![
+            index.to_string(),
+            entry.timestamp.format("%F %H:%M:%S%.3f").to_string(),
+            entry.process_id.to_string(),
+            entry.thread_id.to_string(),
+            entry.log_level.to_string(),
+            entry.tag.to_string(),
+            entry.message.to_string(),
+        ];
+        assert_eq!(texts.len(), COLUMN_NUMBER);
 
-        dbg!(&constraints);
+        let widths = texts.iter().map(|s| UnicodeWidthStr::width(s.as_str())).collect();
+
+        DisplayData {
+            log_entry: entry,
+            texts,
+            widths,
+            wrapped: false,
+        }
+    }
+}
+
+pub struct StatefulTable<'a> {
+    state: TableState,
+    model: &'a Vec<LogEntry>,
+    display_data: Vec<DisplayData<'a>>,
+    column_constraints: Vec<Constraint>,
+    viewport: Rect,
+    column_offset: usize,
+}
+
+impl<'a> StatefulTable<'a> {
+    fn new(model: &'a Vec<LogEntry>) -> StatefulTable {
+        let display_data: Vec<DisplayData> = model.iter().enumerate().map(|(index, entry)| DisplayData::new(index, entry)).collect();
+
+        let constraints = display_data.iter()
+            .fold(vec![0usize; COLUMN_NUMBER], |max_widths, data| {
+                data.widths.iter().zip(max_widths).map(|(w, mw)| *w.max(&mw)).collect()
+            })
+            .iter()
+            .map(|w| Constraint::Length(*w as u16))
+            .collect::<Vec<Constraint>>();
 
         StatefulTable {
-            viewport: Rect::default(),
             state: TableState::default(),
-            rows,
-            constraints: constraints.iter().map(|w| Constraint::Length(*w as u16)).collect(),
+            model,
+            display_data,
+            column_constraints: constraints,
+            viewport: Rect::default(),
             column_offset: 0,
-            wrapped: HashSet::new(),
         }
+    }
+
+    pub fn len(&self) -> usize {
+        self.model.len()
     }
 
     pub fn next(&mut self) {
         let next_item = self.state.selected()
-            .map(|idx| idx.saturating_add(1).min(self.rows.len() - 1))
+            .map(|idx| idx.saturating_add(1).min(self.len() - 1))
             .or(Some(0));
         self.state.select(next_item);
     }
@@ -74,7 +99,7 @@ impl StatefulTable {
     pub fn next_page(&mut self) {
         let next_item = self.state.selected()
             .map(|idx| {
-                idx.saturating_add(self.page_size()).min(self.rows.len() - 1)
+                idx.saturating_add(self.page_size()).min(self.len() - 1)
             })
             .or(Some(0));
         self.state.select(next_item);
@@ -102,10 +127,8 @@ impl StatefulTable {
 
     pub fn wrap_message(&mut self) {
         if let Some(selected) = self.state.selected() {
-            if self.wrapped.contains(&selected) {
-                self.wrapped.remove(&selected);
-            } else {
-                self.wrapped.insert(selected);
+            if let Some(data) = self.display_data.get_mut(selected) {
+                data.wrapped = !data.wrapped
             }
         }
     }
@@ -142,6 +165,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let backend = TermionBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
+    let normal_style = Style::default().bg(Color::Blue);
+    let selected_style = Style::default().add_modifier(Modifier::REVERSED);
+
     loop {
         terminal.draw(|f| {
             let rects = Layout::default()
@@ -150,61 +176,63 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             table.viewport = Rect::new(0, 0, f.size().width, f.size().height - 4u16);
 
-            let selected_style = Style::default().add_modifier(Modifier::REVERSED);
-            let normal_style = Style::default().bg(Color::Blue);
+            // let row_without_message_width = table.column_constraints.iter()
+            //     .take(table.column_constraints.len() - 1)
+            //     .skip(table.column_offset)
+            //     .map(|v| if let Constraint::Length(l) = v { *l } else { 0u16 })
+            //     .sum::<u16>();
 
-            let header_cells = ["#", "Timestamp", "PID", "TID", "Level", "Tag", "Message"]
+            let header_cells = COLUMN_HEADERS
                 .iter()
                 .skip(table.column_offset)
                 .map(|h| Cell::from(*h).style(Style::default().fg(Color::Red)));
 
             let header = Row::new(header_cells).style(normal_style);
 
-            let row_without_message_width = table.constraints.iter()
-                .take(table.constraints.len() - 1)
-                .skip(table.column_offset)
-                .map(|v| if let Constraint::Length(l) = v { *l } else { 0u16 })
-                .sum::<u16>();
-
-            let rows = table.rows.iter().enumerate().map(|(idx, row)| {
-                if table.wrapped.contains(&idx) {
-                    let message = row.last().unwrap();
-                    let message_length = UnicodeWidthStr::width(message.as_str()) as u16;
-                    let selector_width = 3u16;
-                    let column_spacing: u16 = (table.constraints.len() - table.column_offset) as u16;
-                    let available_message_width = table.viewport.width - row_without_message_width - selector_width - column_spacing;
-                    if message_length > available_message_width {
-                        let graphemes =
-                            UnicodeSegmentation::graphemes(message.as_str(), true)
-                                .collect::<Vec<&str>>();
-
-                        let chunks = graphemes.chunks(available_message_width as usize - 1);
-                        let height = chunks.len();
-
-                        let message = chunks.map(|s| s.join("")).fold(
-                            String::with_capacity(message_length as usize + height),
-                            |mut r: String, c| {
-                                r.push_str(c.as_str());
-                                r.push('\n');
-                                r
-                            },
-                        );
-                        Row::new(row.iter()
-                            .skip(table.column_offset)
-                            .take(table.constraints.len() - 1 - table.column_offset)
-                            .map(|c| Cell::from(c.as_str()))
-                            .chain(std::iter::once(Cell::from(message.to_string()))))
-                            .height(height as u16)
-                    } else {
-                        Row::new(row.iter()
-                            .skip(table.column_offset)
-                            .map(|c| Cell::from(c.as_str())))
-                    }
-                } else {
-                    Row::new(row.iter()
+            let rows = table.display_data.iter().map(|data| {
+                Row::new(
+                    data.texts.iter()
                         .skip(table.column_offset)
-                        .map(|c| Cell::from(c.as_str())))
-                }
+                        .map(|t| Cell::from(t.as_str()))
+                )
+                // if table.wrapped.contains(&idx) {
+                //     let message = row.last().unwrap();
+                //     let message_length = UnicodeWidthStr::width(message.as_str()) as u16;
+                //     let selector_width = 3u16;
+                //     let column_spacing: u16 = (table.constraints.len() - table.column_offset) as u16;
+                //     let available_message_width = table.viewport.width - row_without_message_width - selector_width - column_spacing;
+                //     if message_length > available_message_width {
+                //         let graphemes =
+                //             UnicodeSegmentation::graphemes(message.as_str(), true)
+                //                 .collect::<Vec<&str>>();
+                //
+                //         let chunks = graphemes.chunks(available_message_width as usize - 1);
+                //         let height = chunks.len();
+                //
+                //         let message = chunks.map(|s| s.join("")).fold(
+                //             String::with_capacity(message_length as usize + height),
+                //             |mut r: String, c| {
+                //                 r.push_str(c.as_str());
+                //                 r.push('\n');
+                //                 r
+                //             },
+                //         );
+                //         Row::new(row.iter()
+                //             .skip(table.column_offset)
+                //             .take(table.constraints.len() - 1 - table.column_offset)
+                //             .map(|c| Cell::from(c.as_str()))
+                //             .chain(std::iter::once(Cell::from(message.to_string()))))
+                //             .height(height as u16)
+                //     } else {
+                //         Row::new(row.iter()
+                //             .skip(table.column_offset)
+                //             .map(|c| Cell::from(c.as_str())))
+                //     }
+                // } else {
+                //     Row::new(row.iter()
+                //         .skip(table.column_offset)
+                //         .map(|c| Cell::from(c.as_str())))
+                // }
             });
 
             let t = Table::new(rows)
@@ -213,7 +241,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .highlight_style(selected_style)
                 .highlight_symbol(">> ")
                 .column_spacing(1)
-                .widths(&table.constraints[table.column_offset..]);
+                .widths(&table.column_constraints[table.column_offset..]);
+
             f.render_stateful_widget(t, rects[0], &mut table.state);
         })?;
 
