@@ -6,7 +6,7 @@ use tui::layout::{Alignment, Constraint, Layout, Rect};
 use tui::layout::Direction::Vertical;
 use tui::style::{Color, Modifier, Style};
 use tui::Terminal;
-use tui::widgets::{Block, Borders, BorderType, Cell, Paragraph, Row, Table, TableState};
+use tui::widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState};
 use unicode_segmentation::{GraphemeIndices, UnicodeSegmentation};
 use unicode_width::UnicodeWidthStr;
 
@@ -64,15 +64,20 @@ pub struct StatefulTable<'a> {
 
 impl<'a> StatefulTable<'a> {
     fn new(model: &'a Vec<LogEntry>) -> StatefulTable {
-        let display_data: Vec<DisplayData> = model.iter().enumerate().map(|(index, entry)| DisplayData::new(index, entry)).collect();
+        let display_data: Vec<DisplayData> = model.iter()
+            .enumerate()
+            .map(|(index, entry)| DisplayData::new(index + 1, entry))
+            .collect();
 
-        let constraints = display_data.iter()
+        let mut constraints = display_data.iter()
             .fold(vec![0usize; COLUMN_NUMBER], |max_widths, data| {
                 data.widths.iter().zip(max_widths).map(|(w, mw)| *w.max(&mw)).collect()
             })
             .iter()
             .map(|w| Constraint::Length(*w as u16))
             .collect::<Vec<Constraint>>();
+
+        constraints[5] = Constraint::Length(18);
 
         StatefulTable {
             state: TableState::default(),
@@ -250,7 +255,6 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .header(header)
                 .block(Block::default().borders(Borders::ALL).title(input_file.as_str()))
                 .highlight_style(selected_style)
-                .highlight_symbol(">> ")
                 .column_spacing(1)
                 .widths(&table.column_constraints[table.column_offset..]);
 
