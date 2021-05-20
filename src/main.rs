@@ -148,7 +148,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         process::exit(1)
     });
 
-    // let input = DATA.to_string();
     let input =
         fs::read_to_string(&input_file).expect(&format!("Failed to read file {}", &input_file));
 
