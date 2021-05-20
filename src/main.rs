@@ -6,8 +6,9 @@ use tui::layout::{Alignment, Constraint, Layout, Rect};
 use tui::layout::Direction::Vertical;
 use tui::style::{Color, Modifier, Style};
 use tui::Terminal;
+use tui::text::Text;
 use tui::widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState};
-// use unicode_segmentation::{GraphemeIndices, UnicodeSegmentation};
+use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 use crate::events::{Event, Events};
@@ -21,7 +22,7 @@ mod loglevel;
 pub struct DisplayData<'a> {
     log_entry: &'a LogEntry,
     texts: Vec<String>,
-    widths: Vec<usize>,
+    widths: Vec<u16>,
     wrapped: bool,
 }
 
@@ -42,7 +43,7 @@ impl<'a> DisplayData<'a> {
         ];
         assert_eq!(texts.len(), COLUMN_NUMBER);
 
-        let widths = texts.iter().map(|s| UnicodeWidthStr::width(s.as_str())).collect();
+        let widths = texts.iter().map(|s| UnicodeWidthStr::width(s.as_str()) as u16).collect();
 
         DisplayData {
             log_entry: entry,
@@ -69,12 +70,12 @@ impl<'a> StatefulTable<'a> {
             .collect();
 
         let mut column_widths = display_data.iter()
-            .fold(vec![0usize; COLUMN_NUMBER], |max_widths, data| {
-                data.widths.iter().zip(max_widths).map(|(w, mw)| *w.max(&mw)).collect()
-            })
-            .iter()
-            .map(|w| *w as u16)
-            .collect::<Vec<_>>();
+            .fold(vec![0u16; COLUMN_NUMBER], |max_widths, data| {
+                data.widths.iter()
+                    .zip(max_widths)
+                    .map(|(w, mw)| *w.max(&mw))
+                    .collect()
+            });
 
         // Override width of TAG column because the maximum lenght is almost always too much.
         column_widths[4] = 18;
@@ -172,13 +173,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     let backend = TermionBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let normal_style = Style::default().bg(Color::Blue);
+    let header_style = Style::default()
+        .add_modifier(Modifier::BOLD)
+        .fg(Color::White)
+        .bg(Color::DarkGray);
     let selected_style = Style::default().add_modifier(Modifier::REVERSED);
 
     let mut fps_counter = fps_counter::FPSCounter::new();
 
     // Select the first line by default.
     table.next();
+
 
     'main_loop: loop {
         terminal.draw(|f| {
@@ -192,65 +197,48 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             table.viewport = Rect::new(0, 0, f.size().width, f.size().height - 4u16);
 
-            // let row_without_message_width = table.column_constraints.iter()
-            //     .take(table.column_constraints.len() - 1)
-            //     .skip(table.column_offset)
-            //     .map(|v| if let Constraint::Length(l) = v { *l } else { 0u16 })
-            //     .sum::<u16>();
-
-            let header_cells = COLUMN_HEADERS
-                .iter()
+            let header_cells = COLUMN_HEADERS.iter()
                 .skip(table.column_offset)
-                .map(|h| Cell::from(*h).style(Style::default().fg(Color::Red)));
+                .map(|h| Cell::from(*h));
 
-            let header = Row::new(header_cells).style(normal_style);
+            let header = Row::new(header_cells).style(header_style);
 
             let instant = std::time::Instant::now();
 
+            let row_without_message_width = table.column_widths.iter()
+                .take(COLUMN_NUMBER - 1)
+                .skip(table.column_offset)
+                .sum::<u16>();
+            let column_spacing: u16 = (COLUMN_NUMBER - table.column_offset) as u16;
+            let available_message_width = table.viewport.width - row_without_message_width - column_spacing;
+
             let rows = table.display_data.iter().map(|data| {
-                Row::new(
-                    data.texts.iter()
-                        .skip(table.column_offset)
-                        .map(|t| Cell::from(t.as_str()))
-                )
-                // if table.wrapped.contains(&idx) {
-                //     let message = row.last().unwrap();
-                //     let message_length = UnicodeWidthStr::width(message.as_str()) as u16;
-                //     let selector_width = 3u16;
-                //     let column_spacing: u16 = (table.constraints.len() - table.column_offset) as u16;
-                //     let available_message_width = table.viewport.width - row_without_message_width - selector_width - column_spacing;
-                //     if message_length > available_message_width {
-                //         let graphemes =
-                //             UnicodeSegmentation::graphemes(message.as_str(), true)
-                //                 .collect::<Vec<&str>>();
-                //
-                //         let chunks = graphemes.chunks(available_message_width as usize - 1);
-                //         let height = chunks.len();
-                //
-                //         let message = chunks.map(|s| s.join("")).fold(
-                //             String::with_capacity(message_length as usize + height),
-                //             |mut r: String, c| {
-                //                 r.push_str(c.as_str());
-                //                 r.push('\n');
-                //                 r
-                //             },
-                //         );
-                //         Row::new(row.iter()
-                //             .skip(table.column_offset)
-                //             .take(table.constraints.len() - 1 - table.column_offset)
-                //             .map(|c| Cell::from(c.as_str()))
-                //             .chain(std::iter::once(Cell::from(message.to_string()))))
-                //             .height(height as u16)
-                //     } else {
-                //         Row::new(row.iter()
-                //             .skip(table.column_offset)
-                //             .map(|c| Cell::from(c.as_str())))
-                //     }
-                // } else {
-                //     Row::new(row.iter()
-                //         .skip(table.column_offset)
-                //         .map(|c| Cell::from(c.as_str())))
-                // }
+                if data.wrapped && data.widths.last().unwrap() > &available_message_width {
+                    let message = data.texts.last().unwrap();
+                    let indices = wrap_indices(message, available_message_width);
+                    assert!(!indices.is_empty());
+                    let lines = split_string_at_indices(message, &indices);
+                    let mut line_iter = lines.iter();
+
+                    let mut text = Text::from(*line_iter.next().unwrap());
+                    while let Some(line) = line_iter.next() {
+                        text.extend(Text::from(*line));
+                    }
+
+                    Row::new(
+                        data.texts.iter()
+                            .take(COLUMN_NUMBER - 1)
+                            .skip(table.column_offset)
+                            .map(|c| Cell::from(c.as_str()))
+                            .chain(std::iter::once(Cell::from(text)))
+                    ).height(lines.len() as u16)
+                } else {
+                    Row::new(
+                        data.texts.iter()
+                            .skip(table.column_offset)
+                            .map(|t| Cell::from(t.as_str()))
+                    )
+                }
             });
 
             let constraints = table.column_widths[table.column_offset..]
@@ -316,3 +304,108 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
+
+fn wrap_indices(text: &str, max_width: u16) -> Vec<u16> {
+    let mut word_indices = text
+        .split_word_bound_indices()
+        .map(|(pos, _)| pos as u16);
+
+    let mut lines = vec![];
+    let mut prev = None;
+    let mut len = max_width;
+
+    while let Some(pos) = word_indices.next() {
+        if pos > len {
+            if let Some(prev) = prev {
+                lines.push(prev)
+            }
+            prev = Some(pos);
+            len += max_width;
+        } else {
+            prev = Some(pos)
+        }
+    }
+
+    lines
+}
+
+#[test]
+fn wrap_long_text() {
+    let text = concat!(
+    "Explicit concurrent copying GC freed 47311(2322KB) AllocSpace objects, ",
+    "17(724KB) LOS objects, 49% free, 12MB/25MB, paused 339us total 141.468ms"
+    );
+
+    assert_eq!(wrap_indices(text, 20), vec![20, 37, 51, 80, 98, 115]);
+}
+
+#[test]
+fn wrap_short_text() {
+    let text = "Lorem ipsum";
+
+    assert_eq!(wrap_indices(text, 20), vec![]);
+}
+
+#[test]
+fn wrap_empty_text() {
+    let text = "";
+
+    assert_eq!(wrap_indices(text, 20), vec![]);
+}
+
+fn split_string_at_indices<'a>(s: &'a str, indices: &[u16]) -> Vec<&'a str> {
+    assert!((*indices.iter().max().unwrap_or(&0) as usize) < s.len());
+
+    let mut off = 0u16;
+    let mut ms = s;
+    let mut parts: Vec<&str> = indices.iter().map(|&index| {
+        let (head, tail) = ms.split_at((index - off) as usize);
+        off = index;
+        ms = tail;
+        head
+    }).collect();
+    parts.push(ms);
+    parts
+}
+
+#[test]
+fn test_split_string_at_indices() {
+    let s = concat!(
+    "Explicit concurrent copying GC freed 47311(2322KB) AllocSpace objects, ",
+    "17(724KB) LOS objects, 49% free, 12MB/25MB, paused 339us total 141.468ms"
+    );
+    let indices = wrap_indices(s, 20);
+
+    let splits = split_string_at_indices(s, &indices);
+
+    assert_eq!(splits, vec!["Explicit concurrent ",
+                            "copying GC freed ",
+                            "47311(2322KB) ",
+                            "AllocSpace objects, 17(724KB)",
+                            " LOS objects, 49% ",
+                            "free, 12MB/25MB, ",
+                            "paused 339us total 141.468ms"]);
+}
+
+#[test]
+fn test_split_string_at_no_indices() {
+    let s = "Explicit concurrent copying";
+    let splits = split_string_at_indices(s, &[]);
+
+    assert_eq!(splits, vec!["Explicit concurrent copying"]);
+}
+
+#[test]
+fn test_split_suspicious() {
+    let s = concat!(
+    "Invalidating LocalCallingIdentity cache for package ",
+    "com.tomtom.ivi.functionaltest.frontend.alexa.test. ",
+    "Reason: package android.intent.action.PACKAGE_REMOVED"
+    );
+    // It splits in 3 parts of strange lenghts, while it shall be more.
+    let indices = wrap_indices(s, 50);
+
+    assert_eq!(indices, vec![50, 100, 150]);
+}
+/*
+ */
