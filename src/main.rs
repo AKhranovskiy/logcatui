@@ -57,7 +57,7 @@ pub struct StatefulTable<'a> {
     state: TableState,
     model: &'a Vec<LogEntry>,
     display_data: Vec<DisplayData<'a>>,
-    column_constraints: Vec<Constraint>,
+    column_widths: Vec<u16>,
     viewport: Rect,
     column_offset: usize,
 }
@@ -69,21 +69,22 @@ impl<'a> StatefulTable<'a> {
             .map(|(index, entry)| DisplayData::new(index + 1, entry))
             .collect();
 
-        let mut constraints = display_data.iter()
+        let mut column_widths = display_data.iter()
             .fold(vec![0usize; COLUMN_NUMBER], |max_widths, data| {
                 data.widths.iter().zip(max_widths).map(|(w, mw)| *w.max(&mw)).collect()
             })
             .iter()
-            .map(|w| Constraint::Length(*w as u16))
-            .collect::<Vec<Constraint>>();
+            .map(|w| *w as u16)
+            .collect::<Vec<_>>();
 
-        constraints[5] = Constraint::Length(18);
+        // Override width of TAG column because the maximum lenght is almost always too much.
+        column_widths[5] = 18;
 
         StatefulTable {
             state: TableState::default(),
             model,
             display_data,
-            column_constraints: constraints,
+            column_widths,
             viewport: Rect::default(),
             column_offset: 0,
         }
@@ -250,12 +251,17 @@ fn main() -> Result<(), Box<dyn Error>> {
                 // }
             });
 
+            let constraints = table.column_widths[table.column_offset..]
+                .iter()
+                .map(|&w| Constraint::Length(w))
+                .collect::<Vec<_>>();
+
             let t = Table::new(rows)
                 .header(header)
                 .block(Block::default().borders(Borders::ALL).title(input_file.as_str()))
                 .highlight_style(selected_style)
                 .column_spacing(1)
-                .widths(&table.column_constraints[table.column_offset..]);
+                .widths(&constraints);
 
             let table_built = instant.elapsed();
 
