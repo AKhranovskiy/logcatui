@@ -7,7 +7,7 @@ use tui::layout::Direction::Vertical;
 use tui::style::{Color, Modifier, Style};
 use tui::Terminal;
 use tui::widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState};
-use unicode_segmentation::{GraphemeIndices, UnicodeSegmentation};
+// use unicode_segmentation::{GraphemeIndices, UnicodeSegmentation};
 use unicode_width::UnicodeWidthStr;
 
 use crate::events::{Event, Events};
@@ -17,6 +17,7 @@ mod events;
 mod logentry;
 mod loglevel;
 
+#[allow(dead_code)]
 pub struct DisplayData<'a> {
     log_entry: &'a LogEntry,
     texts: Vec<String>,
@@ -24,15 +25,14 @@ pub struct DisplayData<'a> {
     wrapped: bool,
 }
 
-const COLUMN_NUMBER: usize = 7;
+const COLUMN_NUMBER: usize = 6;
 const COLUMN_HEADERS: [&str; COLUMN_NUMBER] = [
-    "#", "Timestamp", "PID", "TID", "Level", "Tag", "Message"
+    "Timestamp", "PID", "TID", "Level", "Tag", "Message"
 ];
 
 impl<'a> DisplayData<'a> {
-    fn new(index: usize, entry: &'a LogEntry) -> Self {
+    fn new(entry: &'a LogEntry) -> Self {
         let texts = vec![
-            index.to_string(),
             entry.timestamp.format("%F %H:%M:%S%.3f").to_string(),
             entry.process_id.to_string(),
             entry.thread_id.to_string(),
@@ -65,8 +65,7 @@ pub struct StatefulTable<'a> {
 impl<'a> StatefulTable<'a> {
     fn new(model: &'a Vec<LogEntry>) -> StatefulTable {
         let display_data: Vec<DisplayData> = model.iter()
-            .enumerate()
-            .map(|(index, entry)| DisplayData::new(index + 1, entry))
+            .map(|entry| DisplayData::new(entry))
             .collect();
 
         let mut column_widths = display_data.iter()
@@ -78,7 +77,7 @@ impl<'a> StatefulTable<'a> {
             .collect::<Vec<_>>();
 
         // Override width of TAG column because the maximum lenght is almost always too much.
-        column_widths[5] = 18;
+        column_widths[4] = 18;
 
         StatefulTable {
             state: TableState::default(),
@@ -128,7 +127,7 @@ impl<'a> StatefulTable<'a> {
     }
 
     pub fn right(&mut self) {
-        self.column_offset = self.column_offset.saturating_add(1).min(6)
+        self.column_offset = self.column_offset.saturating_add(1).min(COLUMN_NUMBER - 1)
     }
     pub fn left(&mut self) {
         self.column_offset = self.column_offset.saturating_sub(1)
@@ -177,6 +176,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let selected_style = Style::default().add_modifier(Modifier::REVERSED);
 
     let mut fps_counter = fps_counter::FPSCounter::new();
+
+    // Select the first line by default.
+    table.next();
 
     'main_loop: loop {
         terminal.draw(|f| {
@@ -270,7 +272,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             let bottom_block = Paragraph::new(
                 format!(
-                    "FPS: {}, table built in {}ms, table rendered in {}ms",
+                    "Row {}/{} FPS: {} table built in {}ms, table rendered in {}ms",
+                    table.state.selected().map(|v| v + 1).unwrap_or(0),
+                    table.len(),
                     fps_counter.tick(),
                     table_built.as_millis(),
                     (table_rendered - table_built).as_millis()
