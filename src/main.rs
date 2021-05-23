@@ -230,13 +230,15 @@ fn main() -> Result<(), Box<dyn Error>> {
                             .take(COLUMN_NUMBER - 1)
                             .skip(table.column_offset)
                             .map(|c| Cell::from(c.as_str()))
-                            .chain(std::iter::once(Cell::from(text)))
-                    ).height(lines.len() as u16)
+                            .chain(std::iter::once(Cell::from(text))),
+                    )
+                    .height(height)
                 } else {
                     Row::new(
-                        data.texts.iter()
+                        data.texts
+                            .iter()
                             .skip(table.column_offset)
-                            .map(|t| Cell::from(t.as_str()))
+                            .map(|t| Cell::from(t.as_str())),
                     )
                 }
             });
@@ -248,7 +250,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             let t = Table::new(rows)
                 .header(header)
-                .block(Block::default().borders(Borders::ALL).title(input_file.as_str()))
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title(input_file.as_str()),
+                )
                 .highlight_style(selected_style)
                 .column_spacing(1)
                 .widths(&constraints);
@@ -258,18 +264,16 @@ fn main() -> Result<(), Box<dyn Error>> {
             f.render_stateful_widget(t, chunks[0], &mut table.state);
             let table_rendered = instant.elapsed();
 
-            let bottom_block = Paragraph::new(
-                format!(
-                    "Row {}/{} FPS: {} table built in {}ms, table rendered in {}ms",
-                    table.state.selected().map(|v| v + 1).unwrap_or(0),
-                    table.len(),
-                    fps_counter.tick(),
-                    table_built.as_millis(),
-                    (table_rendered - table_built).as_millis()
-                )
-            )
-                .style(Style::default().fg(Color::LightCyan))
-                .alignment(Alignment::Left);
+            let bottom_block = Paragraph::new(format!(
+                "Row {}/{} FPS: {} table built in {}ms, table rendered in {}ms",
+                table.state.selected().map(|v| v + 1).unwrap_or(0),
+                table.len(),
+                fps_counter.tick(),
+                table_built.as_millis(),
+                (table_rendered - table_built).as_millis()
+            ))
+            .style(Style::default().fg(Color::LightCyan))
+            .alignment(Alignment::Left);
             f.render_widget(bottom_block, chunks[1]);
         })?;
 
@@ -291,9 +295,15 @@ fn main() -> Result<(), Box<dyn Error>> {
                     Key::PageUp => {
                         table.previous_page();
                     }
-                    Key::Left => { table.left(); }
-                    Key::Right => { table.right(); }
-                    Key::Char('\n') => { table.wrap_message(); }
+                    Key::Left => {
+                        table.left();
+                    }
+                    Key::Right => {
+                        table.right();
+                    }
+                    Key::Char('\n') => {
+                        table.wrap_message();
+                    }
                     _ => {
                         // dbg!(key);
                     }
@@ -306,15 +316,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn wrap_indices(text: &str, max_width: u16) -> Vec<u16> {
-    let mut word_indices = text
-        .split_word_bound_indices()
-        .map(|(pos, _)| pos as u16);
+    let word_indices = text.split_word_bound_indices().map(|(pos, _)| pos as u16);
 
     let mut lines = vec![];
     let mut prev = None;
     let mut len = max_width;
 
-    while let Some(pos) = word_indices.next() {
+    // If last chunk goes beyond wrap it is not added here.
+    for pos in word_indices {
         if pos > len {
             if let Some(prev) = prev {
                 lines.push(prev)
@@ -326,14 +335,20 @@ fn wrap_indices(text: &str, max_width: u16) -> Vec<u16> {
         }
     }
 
+    if text.len() > len as usize {
+        if let Some(prev) = prev {
+            lines.push(prev)
+        }
+    }
+
     lines
 }
 
 #[test]
 fn wrap_long_text() {
     let text = concat!(
-    "Explicit concurrent copying GC freed 47311(2322KB) AllocSpace objects, ",
-    "17(724KB) LOS objects, 49% free, 12MB/25MB, paused 339us total 141.468ms"
+        "Explicit concurrent copying GC freed 47311(2322KB) AllocSpace objects, ",
+        "17(724KB) LOS objects, 49% free, 12MB/25MB, paused 339us total 141.468ms"
     );
 
     assert_eq!(wrap_indices(text, 20), vec![20, 37, 51, 80, 98, 115]);
@@ -358,12 +373,15 @@ fn split_string_at_indices<'a>(s: &'a str, indices: &[u16]) -> Vec<&'a str> {
 
     let mut off = 0u16;
     let mut ms = s;
-    let mut parts: Vec<&str> = indices.iter().map(|&index| {
-        let (head, tail) = ms.split_at((index - off) as usize);
-        off = index;
-        ms = tail;
-        head
-    }).collect();
+    let mut parts: Vec<&str> = indices
+        .iter()
+        .map(|&index| {
+            let (head, tail) = ms.split_at((index - off) as usize);
+            off = index;
+            ms = tail;
+            head
+        })
+        .collect();
     parts.push(ms);
     parts
 }
@@ -371,20 +389,25 @@ fn split_string_at_indices<'a>(s: &'a str, indices: &[u16]) -> Vec<&'a str> {
 #[test]
 fn test_split_string_at_indices() {
     let s = concat!(
-    "Explicit concurrent copying GC freed 47311(2322KB) AllocSpace objects, ",
-    "17(724KB) LOS objects, 49% free, 12MB/25MB, paused 339us total 141.468ms"
+        "Explicit concurrent copying GC freed 47311(2322KB) AllocSpace objects, ",
+        "17(724KB) LOS objects, 49% free, 12MB/25MB, paused 339us total 141.468ms"
     );
     let indices = wrap_indices(s, 20);
 
     let splits = split_string_at_indices(s, &indices);
 
-    assert_eq!(splits, vec!["Explicit concurrent ",
-                            "copying GC freed ",
-                            "47311(2322KB) ",
-                            "AllocSpace objects, 17(724KB)",
-                            " LOS objects, 49% ",
-                            "free, 12MB/25MB, ",
-                            "paused 339us total 141.468ms"]);
+    assert_eq!(
+        splits,
+        vec![
+            "Explicit concurrent ",
+            "copying GC freed ",
+            "47311(2322KB) ",
+            "AllocSpace objects, 17(724KB)",
+            " LOS objects, 49% ",
+            "free, 12MB/25MB, ",
+            "paused 339us total 141.468ms"
+        ]
+    );
 }
 
 #[test]
@@ -398,14 +421,57 @@ fn test_split_string_at_no_indices() {
 #[test]
 fn test_split_suspicious() {
     let s = concat!(
-    "Invalidating LocalCallingIdentity cache for package ",
-    "com.tomtom.ivi.functionaltest.frontend.alexa.test. ",
-    "Reason: package android.intent.action.PACKAGE_REMOVED"
+        "Invalidating LocalCallingIdentity cache for package ",
+        "com.tomtom.ivi.functionaltest.frontend.alexa.test. ",
+        "Reason: package android.intent.action.PACKAGE_REMOVED"
     );
-    // It splits in 3 parts of strange lenghts, while it shall be more.
+    // It splits in 3 parts of strange lengths, while it shall be more.
     let indices = wrap_indices(s, 50);
 
-    assert_eq!(indices, vec![50, 100, 150]);
+    assert_eq!(indices, vec![44, 52]);
 }
-/*
- */
+
+fn create_text(content: &str, wrap_width: u16) -> Text {
+    if content.len() > wrap_width as usize {
+        let indices = wrap_indices(content, wrap_width);
+        assert!(!indices.is_empty());
+
+        let lines = split_string_at_indices(content, &indices);
+        let mut line_iter = lines.iter();
+
+        let mut text = Text::from(*line_iter.next().unwrap());
+        for line in line_iter {
+            text.extend(Text::from(*line));
+        }
+        text
+    } else {
+        Text::from(content)
+    }
+}
+
+#[test]
+fn multiline_text() {
+    let s = concat!(
+        "Invalidating LocalCallingIdentity cache for package ",
+        "com.tomtom.ivi.functionaltest.frontend.alexa.test. ",
+        "Reason: package android.intent.action.PACKAGE_REMOVED"
+    )
+    .to_string();
+
+    let text = create_text(s.as_str(), 50);
+
+    assert_eq!(3, text.height());
+    assert_eq!(
+        text.lines
+            .iter()
+            .flat_map(|spans| { spans.0.iter().map(|span| span.content.to_string()) })
+            .collect::<Vec<_>>()
+            .join("$"),
+        concat!(
+            "Invalidating LocalCallingIdentity cache for $",
+            "package $",
+            "com.tomtom.ivi.functionaltest.frontend.alexa.test. ",
+            "Reason: package android.intent.action.PACKAGE_REMOVED"
+        )
+    )
+}
