@@ -1,4 +1,4 @@
-use tui::layout::Rect;
+use tui::layout::{Constraint, Rect};
 use tui::widgets::TableState;
 
 use crate::display_data::DisplayData;
@@ -115,6 +115,13 @@ impl<'a> LogTable<'a> {
             .sum::<u16>();
         let column_spacing: u16 = (COLUMN_NUMBER - self.column_offset) as u16;
         self.viewport.width - width_without_message - column_spacing
+    }
+
+    pub(crate) fn column_constraints(&self) -> Vec<Constraint> {
+        self.column_widths[self.column_offset..]
+            .iter()
+            .map(|&w| Constraint::Length(w))
+            .collect::<Vec<_>>()
     }
 
     // pub fn
