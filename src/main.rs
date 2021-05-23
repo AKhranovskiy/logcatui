@@ -2,12 +2,12 @@ use std::{env, error::Error, fs, io, process};
 
 use termion::{event::Key, input::MouseTerminal, raw::IntoRawMode, screen::AlternateScreen};
 use tui::backend::TermionBackend;
-use tui::layout::{Alignment, Constraint, Layout, Rect};
 use tui::layout::Direction::Vertical;
+use tui::layout::{Alignment, Constraint, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
-use tui::Terminal;
 use tui::text::Text;
 use tui::widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState};
+use tui::Terminal;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
@@ -27,9 +27,8 @@ pub struct DisplayData<'a> {
 }
 
 const COLUMN_NUMBER: usize = 6;
-const COLUMN_HEADERS: [&str; COLUMN_NUMBER] = [
-    "Timestamp", "PID", "TID", "Level", "Tag", "Message"
-];
+const COLUMN_HEADERS: [&str; COLUMN_NUMBER] =
+    ["Timestamp", "PID", "TID", "Level", "Tag", "Message"];
 
 impl<'a> DisplayData<'a> {
     fn new(entry: &'a LogEntry) -> Self {
@@ -43,7 +42,10 @@ impl<'a> DisplayData<'a> {
         ];
         assert_eq!(texts.len(), COLUMN_NUMBER);
 
-        let widths = texts.iter().map(|s| UnicodeWidthStr::width(s.as_str()) as u16).collect();
+        let widths = texts
+            .iter()
+            .map(|s| UnicodeWidthStr::width(s.as_str()) as u16)
+            .collect();
 
         DisplayData {
             log_entry: entry,
@@ -56,7 +58,7 @@ impl<'a> DisplayData<'a> {
 
 pub struct StatefulTable<'a> {
     state: TableState,
-    model: &'a Vec<LogEntry>,
+    model: &'a [LogEntry],
     display_data: Vec<DisplayData<'a>>,
     column_widths: Vec<u16>,
     viewport: Rect,
@@ -64,20 +66,22 @@ pub struct StatefulTable<'a> {
 }
 
 impl<'a> StatefulTable<'a> {
-    fn new(model: &'a Vec<LogEntry>) -> StatefulTable {
-        let display_data: Vec<DisplayData> = model.iter()
-            .map(|entry| DisplayData::new(entry))
-            .collect();
+    fn new(model: &[LogEntry]) -> StatefulTable {
+        let display_data: Vec<DisplayData> =
+            model.iter().map(|entry| DisplayData::new(entry)).collect();
 
-        let mut column_widths = display_data.iter()
-            .fold(vec![0u16; COLUMN_NUMBER], |max_widths, data| {
-                data.widths.iter()
-                    .zip(max_widths)
-                    .map(|(w, mw)| *w.max(&mw))
-                    .collect()
-            });
+        let mut column_widths =
+            display_data
+                .iter()
+                .fold(vec![0u16; COLUMN_NUMBER], |max_widths, data| {
+                    data.widths
+                        .iter()
+                        .zip(max_widths)
+                        .map(|(w, mw)| *w.max(&mw))
+                        .collect()
+                });
 
-        // Override width of TAG column because the maximum lenght is almost always too much.
+        // Override width of TAG column because the maximum length is almost always too much.
         column_widths[4] = 18;
 
         StatefulTable {
@@ -94,8 +98,14 @@ impl<'a> StatefulTable<'a> {
         self.model.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.model.is_empty()
+    }
+
     pub fn next(&mut self) {
-        let next_item = self.state.selected()
+        let next_item = self
+            .state
+            .selected()
             .map(|idx| idx.saturating_add(1).min(self.len() - 1))
             .or(Some(0));
         self.state.select(next_item);
@@ -106,22 +116,26 @@ impl<'a> StatefulTable<'a> {
     }
 
     pub fn next_page(&mut self) {
-        let next_item = self.state.selected()
-            .map(|idx| {
-                idx.saturating_add(self.page_size()).min(self.len() - 1)
-            })
+        let next_item = self
+            .state
+            .selected()
+            .map(|idx| idx.saturating_add(self.page_size()).min(self.len() - 1))
             .or(Some(0));
         self.state.select(next_item);
     }
 
     pub fn previous(&mut self) {
-        let prev_item = self.state.selected()
+        let prev_item = self
+            .state
+            .selected()
             .map(|idx| idx.saturating_sub(1))
             .or(Some(0));
         self.state.select(prev_item);
     }
     pub fn previous_page(&mut self) {
-        let prev_item = self.state.selected()
+        let prev_item = self
+            .state
+            .selected()
             .map(|idx| idx.saturating_sub(self.page_size()))
             .or(Some(0));
         self.state.select(prev_item);
@@ -149,8 +163,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         process::exit(1)
     });
 
-    let input =
-        fs::read_to_string(&input_file).expect(&format!("Failed to read file {}", &input_file));
+    let input = fs::read_to_string(&input_file)
+        .unwrap_or_else(|_| panic!("Failed to read file {}", &input_file));
 
     let start = std::time::Instant::now();
     let model = input
@@ -184,20 +198,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Select the first line by default.
     table.next();
 
-
     'main_loop: loop {
         terminal.draw(|f| {
             let chunks = Layout::default()
                 .direction(Vertical)
-                .constraints([
-                    Constraint::Min(1),
-                    Constraint::Length(1)
-                ].as_ref())
+                .constraints([Constraint::Min(1), Constraint::Length(1)].as_ref())
                 .split(f.size());
 
             table.viewport = Rect::new(0, 0, f.size().width, f.size().height - 4u16);
 
-            let header_cells = COLUMN_HEADERS.iter()
+            let header_cells = COLUMN_HEADERS
+                .iter()
                 .skip(table.column_offset)
                 .map(|h| Cell::from(*h));
 
@@ -205,28 +216,25 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             let instant = std::time::Instant::now();
 
-            let row_without_message_width = table.column_widths.iter()
+            let row_without_message_width = table
+                .column_widths
+                .iter()
                 .take(COLUMN_NUMBER - 1)
                 .skip(table.column_offset)
                 .sum::<u16>();
             let column_spacing: u16 = (COLUMN_NUMBER - table.column_offset) as u16;
-            let available_message_width = table.viewport.width - row_without_message_width - column_spacing;
+            let available_message_width =
+                table.viewport.width - row_without_message_width - column_spacing;
 
             let rows = table.display_data.iter().map(|data| {
                 if data.wrapped && data.widths.last().unwrap() > &available_message_width {
                     let message = data.texts.last().unwrap();
-                    let indices = wrap_indices(message, available_message_width);
-                    assert!(!indices.is_empty());
-                    let lines = split_string_at_indices(message, &indices);
-                    let mut line_iter = lines.iter();
-
-                    let mut text = Text::from(*line_iter.next().unwrap());
-                    while let Some(line) = line_iter.next() {
-                        text.extend(Text::from(*line));
-                    }
+                    let text = create_text(message, available_message_width);
+                    let height = text.height() as u16;
 
                     Row::new(
-                        data.texts.iter()
+                        data.texts
+                            .iter()
                             .take(COLUMN_NUMBER - 1)
                             .skip(table.column_offset)
                             .map(|c| Cell::from(c.as_str()))
