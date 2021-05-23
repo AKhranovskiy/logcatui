@@ -5,156 +5,35 @@ use tui::backend::TermionBackend;
 use tui::layout::Direction::Vertical;
 use tui::layout::{Alignment, Constraint, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
-use tui::text::Text;
-use tui::widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState};
+use tui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
 use tui::Terminal;
-use unicode_segmentation::UnicodeSegmentation;
-use unicode_width::UnicodeWidthStr;
+
+use log_table::LogTable;
 
 use crate::events::{Event, Events};
 use crate::logentry::LogEntry;
 
+mod display_data;
 mod events;
+mod log_table;
 mod logentry;
 mod loglevel;
-
-#[allow(dead_code)]
-pub struct DisplayData<'a> {
-    log_entry: &'a LogEntry,
-    texts: Vec<String>,
-    widths: Vec<u16>,
-    wrapped: bool,
-}
+mod text_utils;
 
 const COLUMN_NUMBER: usize = 6;
 const COLUMN_HEADERS: [&str; COLUMN_NUMBER] =
     ["Timestamp", "PID", "TID", "Level", "Tag", "Message"];
 
-impl<'a> DisplayData<'a> {
-    fn new(entry: &'a LogEntry) -> Self {
-        let texts = vec![
-            entry.timestamp.format("%F %H:%M:%S%.3f").to_string(),
-            entry.process_id.to_string(),
-            entry.thread_id.to_string(),
-            entry.log_level.to_string(),
-            entry.tag.to_string(),
-            entry.message.to_string(),
-        ];
-        assert_eq!(texts.len(), COLUMN_NUMBER);
+fn load_logfile(input_file: &str) -> Vec<LogEntry> {
+    let input = fs::read_to_string(&input_file)
+        .unwrap_or_else(|_| panic!("Failed to read file {}", &input_file));
 
-        let widths = texts
-            .iter()
-            .map(|s| UnicodeWidthStr::width(s.as_str()) as u16)
-            .collect();
+    let model = input
+        .lines()
+        .filter_map(|line| line.parse().ok())
+        .collect::<Vec<LogEntry>>();
 
-        DisplayData {
-            log_entry: entry,
-            texts,
-            widths,
-            wrapped: false,
-        }
-    }
-}
-
-pub struct StatefulTable<'a> {
-    state: TableState,
-    model: &'a [LogEntry],
-    display_data: Vec<DisplayData<'a>>,
-    column_widths: Vec<u16>,
-    viewport: Rect,
-    column_offset: usize,
-}
-
-impl<'a> StatefulTable<'a> {
-    fn new(model: &[LogEntry]) -> StatefulTable {
-        let display_data: Vec<DisplayData> =
-            model.iter().map(|entry| DisplayData::new(entry)).collect();
-
-        let mut column_widths =
-            display_data
-                .iter()
-                .fold(vec![0u16; COLUMN_NUMBER], |max_widths, data| {
-                    data.widths
-                        .iter()
-                        .zip(max_widths)
-                        .map(|(w, mw)| *w.max(&mw))
-                        .collect()
-                });
-
-        // Override width of TAG column because the maximum length is almost always too much.
-        column_widths[4] = 18;
-
-        StatefulTable {
-            state: TableState::default(),
-            model,
-            display_data,
-            column_widths,
-            viewport: Rect::default(),
-            column_offset: 0,
-        }
-    }
-
-    pub fn len(&self) -> usize {
-        self.model.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.model.is_empty()
-    }
-
-    pub fn next(&mut self) {
-        let next_item = self
-            .state
-            .selected()
-            .map(|idx| idx.saturating_add(1).min(self.len() - 1))
-            .or(Some(0));
-        self.state.select(next_item);
-    }
-
-    fn page_size(&self) -> usize {
-        self.viewport.height as usize
-    }
-
-    pub fn next_page(&mut self) {
-        let next_item = self
-            .state
-            .selected()
-            .map(|idx| idx.saturating_add(self.page_size()).min(self.len() - 1))
-            .or(Some(0));
-        self.state.select(next_item);
-    }
-
-    pub fn previous(&mut self) {
-        let prev_item = self
-            .state
-            .selected()
-            .map(|idx| idx.saturating_sub(1))
-            .or(Some(0));
-        self.state.select(prev_item);
-    }
-    pub fn previous_page(&mut self) {
-        let prev_item = self
-            .state
-            .selected()
-            .map(|idx| idx.saturating_sub(self.page_size()))
-            .or(Some(0));
-        self.state.select(prev_item);
-    }
-
-    pub fn right(&mut self) {
-        self.column_offset = self.column_offset.saturating_add(1).min(COLUMN_NUMBER - 1)
-    }
-    pub fn left(&mut self) {
-        self.column_offset = self.column_offset.saturating_sub(1)
-    }
-
-    pub fn wrap_message(&mut self) {
-        if let Some(selected) = self.state.selected() {
-            if let Some(data) = self.display_data.get_mut(selected) {
-                data.wrapped = !data.wrapped
-            }
-        }
-    }
+    model
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -163,14 +42,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         process::exit(1)
     });
 
-    let input = fs::read_to_string(&input_file)
-        .unwrap_or_else(|_| panic!("Failed to read file {}", &input_file));
-
     let start = std::time::Instant::now();
-    let model = input
-        .lines()
-        .filter_map(|line| line.parse().ok())
-        .collect::<Vec<LogEntry>>();
+
+    let model = load_logfile(&input_file);
 
     println!(
         "Parsed {} entries, elapsed {}ms",
@@ -179,7 +53,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     );
 
     let events = Events::new();
-    let mut table = StatefulTable::new(&model);
+    let mut table = LogTable::new(&model);
 
     let stdout = io::stdout().into_raw_mode()?;
     let stdout = MouseTerminal::from(stdout);
@@ -216,40 +90,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             let instant = std::time::Instant::now();
 
-            let row_without_message_width = table
-                .column_widths
+            let available_message_width = table.available_message_width();
+
+            let rows = table
+                .display_data
                 .iter()
-                .take(COLUMN_NUMBER - 1)
-                .skip(table.column_offset)
-                .sum::<u16>();
-            let column_spacing: u16 = (COLUMN_NUMBER - table.column_offset) as u16;
-            let available_message_width =
-                table.viewport.width - row_without_message_width - column_spacing;
-
-            let rows = table.display_data.iter().map(|data| {
-                if data.wrapped && data.widths.last().unwrap() > &available_message_width {
-                    let message = data.texts.last().unwrap();
-                    let text = create_text(message, available_message_width);
-                    let height = text.height() as u16;
-
-                    Row::new(
-                        data.texts
-                            .iter()
-                            .take(COLUMN_NUMBER - 1)
-                            .skip(table.column_offset)
-                            .map(|c| Cell::from(c.as_str()))
-                            .chain(std::iter::once(Cell::from(text))),
-                    )
-                    .height(height)
-                } else {
-                    Row::new(
-                        data.texts
-                            .iter()
-                            .skip(table.column_offset)
-                            .map(|t| Cell::from(t.as_str())),
-                    )
-                }
-            });
+                .map(|data| data.as_row(table.column_offset, available_message_width));
 
             let constraints = table.column_widths[table.column_offset..]
                 .iter()
@@ -270,6 +116,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             let table_built = instant.elapsed();
 
             f.render_stateful_widget(t, chunks[0], &mut table.state);
+
             let table_rendered = instant.elapsed();
 
             let bottom_block = Paragraph::new(format!(
@@ -321,158 +168,4 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     Ok(())
-}
-
-fn wrap_indices(text: &str, max_width: u16) -> Vec<u16> {
-    let word_indices = text.split_word_bound_indices().map(|(pos, _)| pos as u16);
-
-    let mut lines = vec![];
-    let mut prev = None;
-    let mut len = max_width;
-
-    for pos in word_indices.chain(std::iter::once(text.len() as u16)) {
-        if pos > len {
-            if let Some(prev) = prev {
-                lines.push(prev)
-            }
-            prev = Some(pos);
-            len += max_width;
-        } else {
-            prev = Some(pos)
-        }
-    }
-
-    lines
-}
-
-#[test]
-fn wrap_long_text() {
-    let text = concat!(
-        "Explicit concurrent copying GC freed 47311(2322KB) AllocSpace objects, ",
-        "17(724KB) LOS objects, 49% free, 12MB/25MB, paused 339us total 141.468ms"
-    );
-
-    assert_eq!(wrap_indices(text, 20), vec![20, 37, 51, 80, 98, 115, 134]);
-}
-
-#[test]
-fn wrap_short_text() {
-    let text = "Lorem ipsum";
-
-    assert_eq!(wrap_indices(text, 20), vec![]);
-}
-
-#[test]
-fn wrap_empty_text() {
-    let text = "";
-
-    assert_eq!(wrap_indices(text, 20), vec![]);
-}
-
-fn split_string_at_indices<'a>(s: &'a str, indices: &[u16]) -> Vec<&'a str> {
-    assert!((*indices.iter().max().unwrap_or(&0) as usize) < s.len());
-
-    let mut off = 0u16;
-    let mut ms = s;
-    let mut parts: Vec<&str> = indices
-        .iter()
-        .map(|&index| {
-            let (head, tail) = ms.split_at((index - off) as usize);
-            off = index;
-            ms = tail;
-            head
-        })
-        .collect();
-    parts.push(ms);
-    parts
-}
-
-#[test]
-fn test_split_string_at_indices() {
-    let s = concat!(
-        "Explicit concurrent copying GC freed 47311(2322KB) AllocSpace objects, ",
-        "17(724KB) LOS objects, 49% free, 12MB/25MB, paused 339us total 141.468ms"
-    );
-    let indices = wrap_indices(s, 20);
-
-    let splits = split_string_at_indices(s, &indices);
-
-    assert_eq!(
-        splits,
-        vec![
-            "Explicit concurrent ",
-            "copying GC freed ",
-            "47311(2322KB) ",
-            "AllocSpace objects, 17(724KB)",
-            " LOS objects, 49% ",
-            "free, 12MB/25MB, ",
-            "paused 339us total ",
-            "141.468ms"
-        ]
-    );
-}
-
-#[test]
-fn test_split_string_at_no_indices() {
-    let s = "Explicit concurrent copying";
-    let splits = split_string_at_indices(s, &[]);
-
-    assert_eq!(splits, vec!["Explicit concurrent copying"]);
-}
-
-#[test]
-fn test_split_suspicious() {
-    let s = concat!(
-        "Invalidating LocalCallingIdentity cache for package ",
-        "com.tomtom.ivi.functionaltest.frontend.alexa.test. ",
-        "Reason: package android.intent.action.PACKAGE_REMOVED"
-    );
-    let indices = wrap_indices(s, 50);
-
-    assert_eq!(indices, vec![44, 52, 119]);
-}
-
-fn create_text(content: &str, wrap_width: u16) -> Text {
-    if content.len() > wrap_width as usize {
-        let indices = wrap_indices(content, wrap_width);
-        assert!(!indices.is_empty());
-
-        let lines = split_string_at_indices(content, &indices);
-        let mut line_iter = lines.iter();
-
-        let mut text = Text::from(*line_iter.next().unwrap());
-        for line in line_iter {
-            text.extend(Text::from(*line));
-        }
-        text
-    } else {
-        Text::from(content)
-    }
-}
-
-#[test]
-fn multiline_text() {
-    let s = concat!(
-        "Invalidating LocalCallingIdentity cache for package ",
-        "com.tomtom.ivi.functionaltest.frontend.alexa.test. ",
-        "Reason: package android.intent.action.PACKAGE_REMOVED"
-    )
-    .to_string();
-
-    let text = create_text(s.as_str(), 50);
-
-    assert_eq!(4, text.height());
-    assert_eq!(
-        text.lines
-            .iter()
-            .flat_map(|spans| { spans.0.iter().map(|span| span.content.to_string()) })
-            .collect::<Vec<_>>()
-            .join("$"),
-        concat!(
-            "Invalidating LocalCallingIdentity cache for $",
-            "package $",
-            "com.tomtom.ivi.functionaltest.frontend.alexa.test. Reason: package $",
-            "android.intent.action.PACKAGE_REMOVED"
-        )
-    )
 }
