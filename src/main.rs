@@ -330,8 +330,7 @@ fn wrap_indices(text: &str, max_width: u16) -> Vec<u16> {
     let mut prev = None;
     let mut len = max_width;
 
-    // If last chunk goes beyond wrap it is not added here.
-    for pos in word_indices {
+    for pos in word_indices.chain(std::iter::once(text.len() as u16)) {
         if pos > len {
             if let Some(prev) = prev {
                 lines.push(prev)
@@ -340,12 +339,6 @@ fn wrap_indices(text: &str, max_width: u16) -> Vec<u16> {
             len += max_width;
         } else {
             prev = Some(pos)
-        }
-    }
-
-    if text.len() > len as usize {
-        if let Some(prev) = prev {
-            lines.push(prev)
         }
     }
 
@@ -359,7 +352,7 @@ fn wrap_long_text() {
         "17(724KB) LOS objects, 49% free, 12MB/25MB, paused 339us total 141.468ms"
     );
 
-    assert_eq!(wrap_indices(text, 20), vec![20, 37, 51, 80, 98, 115]);
+    assert_eq!(wrap_indices(text, 20), vec![20, 37, 51, 80, 98, 115, 134]);
 }
 
 #[test]
@@ -413,7 +406,8 @@ fn test_split_string_at_indices() {
             "AllocSpace objects, 17(724KB)",
             " LOS objects, 49% ",
             "free, 12MB/25MB, ",
-            "paused 339us total 141.468ms"
+            "paused 339us total ",
+            "141.468ms"
         ]
     );
 }
@@ -433,10 +427,9 @@ fn test_split_suspicious() {
         "com.tomtom.ivi.functionaltest.frontend.alexa.test. ",
         "Reason: package android.intent.action.PACKAGE_REMOVED"
     );
-    // It splits in 3 parts of strange lengths, while it shall be more.
     let indices = wrap_indices(s, 50);
 
-    assert_eq!(indices, vec![44, 52]);
+    assert_eq!(indices, vec![44, 52, 119]);
 }
 
 fn create_text(content: &str, wrap_width: u16) -> Text {
@@ -468,7 +461,7 @@ fn multiline_text() {
 
     let text = create_text(s.as_str(), 50);
 
-    assert_eq!(3, text.height());
+    assert_eq!(4, text.height());
     assert_eq!(
         text.lines
             .iter()
@@ -478,8 +471,8 @@ fn multiline_text() {
         concat!(
             "Invalidating LocalCallingIdentity cache for $",
             "package $",
-            "com.tomtom.ivi.functionaltest.frontend.alexa.test. ",
-            "Reason: package android.intent.action.PACKAGE_REMOVED"
+            "com.tomtom.ivi.functionaltest.frontend.alexa.test. Reason: package $",
+            "android.intent.action.PACKAGE_REMOVED"
         )
     )
 }
