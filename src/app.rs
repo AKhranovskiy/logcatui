@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 
+use clipboard::{ClipboardContext, ClipboardProvider};
 use termion::event::Key;
 use tui::backend::Backend;
 use tui::layout::Direction::Vertical;
@@ -126,6 +127,18 @@ impl<'a> App<'a> {
         f.render_widget(bottom_block, chunks[1]);
     }
 
+    fn copy_line(&self) {
+        if let Some(selected) = self.table.state.selected() {
+            if let Some(entry) = self.table.model.get(selected) {
+                ClipboardProvider::new()
+                    .map(|mut ctx: ClipboardContext| ctx.set_contents(entry.message.clone()))
+                    .flatten()
+                    .map_err(|e| dbg!(e))
+                    .unwrap();
+            }
+        }
+    }
+
     pub fn input(&mut self, key: &Key) {
         match key {
             Key::Char('q') | Key::Ctrl('c') => self.should_quit = true,
@@ -149,6 +162,9 @@ impl<'a> App<'a> {
             }
             Key::Char('\n') => {
                 self.table.wrap_message();
+            }
+            Key::Char('y') => {
+                self.copy_line();
             }
             _ => {
                 // dbg!(key);

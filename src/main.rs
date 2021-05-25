@@ -1,3 +1,5 @@
+#![feature(result_flattening)]
+
 use std::{env, error::Error, fs, io, process};
 
 use termion::{input::MouseTerminal, raw::IntoRawMode, screen::AlternateScreen};

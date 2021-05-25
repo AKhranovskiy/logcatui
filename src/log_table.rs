@@ -7,7 +7,7 @@ use crate::COLUMN_NUMBER;
 
 pub struct LogTable<'a> {
     pub(crate) state: TableState,
-    model: &'a [LogEntry],
+    pub(crate) model: &'a [LogEntry],
     pub(crate) display_data: Vec<DisplayData<'a>>,
     pub(crate) column_widths: Vec<u16>,
     pub(crate) viewport: Rect,
