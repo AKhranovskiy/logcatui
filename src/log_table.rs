@@ -124,5 +124,11 @@ impl<'a> LogTable<'a> {
             .collect::<Vec<_>>()
     }
 
+    pub(crate) fn first(&mut self) {
+        self.state.select(Some(0))
+    }
+    pub(crate) fn last(&mut self) {
+        self.state.select(Some(self.model.len().saturating_sub(1)))
+    }
     // pub fn
 }

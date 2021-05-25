@@ -39,6 +39,7 @@ pub struct App<'a> {
     styles: HashMap<StyleKey, Style>,
     table: LogTable<'a>,
     fps: fps_counter::FPSCounter,
+    last_key: Option<Key>,
 }
 
 fn init_styles() -> HashMap<StyleKey, Style> {
@@ -69,6 +70,7 @@ impl<'a> App<'a> {
             table,
             fps: fps_counter::FPSCounter::new(),
             should_quit: false,
+            last_key: None,
         }
     }
 
@@ -115,12 +117,13 @@ impl<'a> App<'a> {
         let table_rendered = instant.elapsed();
 
         let bottom_block = Paragraph::new(format!(
-            "Row {}/{} FPS: {} table built in {}ms, table rendered in {}ms",
+            "Row {}/{} FPS: {} table built in {}ms, table rendered in {}ms, last key: {:?}",
             self.table.state.selected().map(|v| v + 1).unwrap_or(0),
             self.table.len(),
             self.fps.tick(),
             table_built.as_millis(),
-            (table_rendered - table_built).as_millis()
+            (table_rendered - table_built).as_millis(),
+            self.last_key
         ))
         .style(Style::default().fg(Color::LightCyan))
         .alignment(Alignment::Left);
@@ -140,6 +143,7 @@ impl<'a> App<'a> {
     }
 
     pub fn input(&mut self, key: &Key) {
+        self.last_key = Some(*key);
         match key {
             Key::Char('q') | Key::Ctrl('c') => self.should_quit = true,
             Key::Down => {
@@ -166,9 +170,9 @@ impl<'a> App<'a> {
             Key::Char('y') => {
                 self.copy_line();
             }
-            _ => {
-                // dbg!(key);
-            }
+            Key::Home => self.table.first(),
+            Key::End => self.table.last(),
+            _ => {}
         }
     }
 }
