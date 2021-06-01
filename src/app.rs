@@ -26,14 +26,33 @@ pub struct App<'a> {
     table: LogTable<'a>,
     fps: fps_counter::FPSCounter,
     input_event_message: String,
-    quick_search_mode_active: bool,
-    quick_search_string: String,
+    quick_search: QuickSearchState,
 }
 
 struct AppLayout {
     table: Rect,
     quick_search: Rect,
     status_bar: Rect,
+}
+
+struct QuickSearchState {
+    mode: QuickSearchMode,
+    input: String,
+}
+
+impl Default for QuickSearchState {
+    fn default() -> Self {
+        Self {
+            mode: QuickSearchMode::Off,
+            input: String::new(),
+        }
+    }
+}
+
+enum QuickSearchMode {
+    Off,
+    Input,
+    Iteration,
 }
 
 impl<'a> App<'a> {
@@ -48,32 +67,27 @@ impl<'a> App<'a> {
             fps: fps_counter::FPSCounter::new(),
             should_quit: false,
             input_event_message: String::new(),
-            quick_search_mode_active: false,
-            quick_search_string: String::new(),
+            quick_search: QuickSearchState::default(),
         }
     }
 
     fn layout<B: Backend>(&self, f: &mut Frame<B>) -> AppLayout {
-        let has_search_field =
-            self.quick_search_mode_active || !self.quick_search_string.is_empty();
-
-        let constraints = if has_search_field {
-            [
-                Constraint::Min(1),
-                Constraint::Length(1),
-                Constraint::Length(1),
-            ]
-        } else {
-            [
-                Constraint::Min(1),
-                Constraint::Length(0),
-                Constraint::Length(1),
-            ]
+        let quick_search_height: u16 = match self.quick_search.mode {
+            QuickSearchMode::Off => 0,
+            QuickSearchMode::Input => 1,
+            QuickSearchMode::Iteration => 1,
         };
 
         let chunks = Layout::default()
             .direction(Vertical)
-            .constraints(constraints.as_ref())
+            .constraints(
+                [
+                    Constraint::Min(1),
+                    Constraint::Length(quick_search_height),
+                    Constraint::Length(1),
+                ]
+                .as_ref(),
+            )
             .split(f.size());
 
         AppLayout {
@@ -122,23 +136,25 @@ impl<'a> App<'a> {
 
         let table_rendered = instant.elapsed();
 
-        let quick_search = Paragraph::new(self.quick_search_string.as_ref())
-            .style(if self.quick_search_mode_active {
-                Style::default()
-            } else {
-                Style::default().fg(Color::Yellow)
-            })
-            .block(Block::default().borders(Borders::LEFT));
-
-        f.render_widget(quick_search, layout.quick_search);
-
-        if self.quick_search_mode_active {
-            let w: u16 = self.quick_search_string.width().as_();
-            f.set_cursor(
-                // Put cursor past the end of the input text
-                layout.quick_search.x + w + 1,
-                layout.quick_search.y,
-            )
+        match self.quick_search.mode {
+            QuickSearchMode::Off => {}
+            QuickSearchMode::Input => {
+                let block = Paragraph::new(format!("/ {}", self.quick_search.input))
+                    .block(Block::default().borders(Borders::NONE));
+                f.render_widget(block, layout.quick_search);
+                let w: u16 = self.quick_search.input.width().as_();
+                f.set_cursor(
+                    // Put cursor past the end of the input text
+                    layout.quick_search.x + 1 + w + 1,
+                    layout.quick_search.y,
+                )
+            }
+            QuickSearchMode::Iteration => {
+                let block = Paragraph::new(format!("/ {}", self.quick_search.input))
+                    .style(Style::default().fg(Color::Yellow))
+                    .block(Block::default().borders(Borders::NONE));
+                f.render_widget(block, layout.quick_search);
+            }
         }
 
         let bottom_block = Paragraph::new(format!(
@@ -239,10 +255,10 @@ impl<'a> App<'a> {
     }
 
     fn enter_quick_search_mode(&mut self) {
-        self.quick_search_mode_active = true
+        self.quick_search.mode = QuickSearchMode::Input;
     }
     fn exit_quick_search_mode(&mut self) {
-        self.quick_search_mode_active = false
+        self.quick_search.mode = QuickSearchMode::Off
     }
 }
 
