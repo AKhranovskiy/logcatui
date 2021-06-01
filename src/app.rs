@@ -74,8 +74,7 @@ impl<'a> App<'a> {
     fn layout<B: Backend>(&self, f: &mut Frame<B>) -> AppLayout {
         let quick_search_height: u16 = match self.quick_search.mode {
             QuickSearchMode::Off => 0,
-            QuickSearchMode::Input => 1,
-            QuickSearchMode::Iteration => 1,
+            QuickSearchMode::Input | QuickSearchMode::Iteration => 1,
         };
 
         let chunks = Layout::default()
@@ -172,26 +171,31 @@ impl<'a> App<'a> {
         f.render_widget(bottom_block, layout.status_bar);
     }
 
-    fn copy_line(&self) {
+    fn copy_line(&mut self) {
         if let Some(selected) = self.table.state.selected() {
             if let Some(entry) = self.table.model.get(selected) {
-                ClipboardProvider::new()
-                    .map(|mut ctx: ClipboardContext| ctx.set_contents(format!("{}", entry)))
-                    .flatten()
-                    .map_err(|e| dbg!(e))
-                    .unwrap();
+                self.input_event_message = match ClipboardProvider::new()
+                    .and_then(|mut ctx: ClipboardContext| ctx.set_contents(format!("{}", entry)))
+                {
+                    Ok(()) => format!("Copied the line {} to clipboard", selected + 1),
+                    Err(ref e) => format!("Failed to copy line {}", e),
+                }
             }
         }
     }
 
-    fn copy_message(&self) {
+    fn copy_message(&mut self) {
         if let Some(selected) = self.table.state.selected() {
             if let Some(entry) = self.table.model.get(selected) {
-                ClipboardProvider::new()
-                    .map(|mut ctx: ClipboardContext| ctx.set_contents(entry.message.clone()))
-                    .flatten()
-                    .map_err(|e| dbg!(e))
-                    .unwrap();
+                self.input_event_message = match ClipboardProvider::new()
+                    .and_then(|mut ctx: ClipboardContext| ctx.set_contents(entry.message.clone()))
+                {
+                    Ok(()) => format!(
+                        "Copied the message from the line {} to clipboard",
+                        selected + 1
+                    ),
+                    Err(ref e) => format!("Failed to copy message {}", e),
+                }
             }
         }
     }
@@ -203,51 +207,33 @@ impl<'a> App<'a> {
     pub fn input(&mut self, event: &KeyEvent) {
         self.input_event_message.clear();
 
-        match event.code {
-            KeyCode::Char('q') => self.quit(),
-            KeyCode::Char('c') => {
-                if with_ctrl(event) {
-                    self.quit()
+        match self.quick_search.mode {
+            QuickSearchMode::Off => match event.code {
+                KeyCode::Char('q') => self.quit(),
+                KeyCode::Char('c') => {
+                    if with_ctrl(event) {
+                        self.quit()
+                    }
                 }
-            }
 
-            KeyCode::Down => {
-                self.table.next();
-            }
-            KeyCode::Up => {
-                self.table.previous();
-            }
-            KeyCode::PageDown => {
-                self.table.next_page();
-            }
-            KeyCode::PageUp => {
-                self.table.previous_page();
-            }
-            KeyCode::Left => {
-                self.table.left();
-            }
-            KeyCode::Right => {
-                self.table.right();
-            }
-            KeyCode::Enter => {
-                self.table.wrap_message();
-            }
-            KeyCode::Char('y') => {
-                self.copy_line();
-                self.input_event_message = format!(
-                    "Copied the line {} to clipboard",
-                    self.table.state.selected().unwrap()
-                );
-            }
-            KeyCode::Char('Y') => {
-                self.copy_message();
-                self.input_event_message = format!(
-                    "Copied the message from the line {} to clipboard",
-                    self.table.state.selected().unwrap_or(0) + 1
-                );
-            }
-            KeyCode::Home => self.table.first(),
-            KeyCode::End => self.table.last(),
+                KeyCode::Down => self.table.next(),
+                KeyCode::Up => self.table.previous(),
+                KeyCode::PageDown => self.table.next_page(),
+                KeyCode::PageUp => self.table.previous_page(),
+                KeyCode::Left => self.table.left(),
+                KeyCode::Right => self.table.right(),
+                KeyCode::Enter => self.table.wrap_message(),
+                KeyCode::Char('y') => self.copy_line(),
+                KeyCode::Char('Y') => self.copy_message(),
+                KeyCode::Home => self.table.first(),
+                KeyCode::End => self.table.last(),
+                _ => {}
+            },
+            QuickSearchMode::Input => {}
+            QuickSearchMode::Iteration => {}
+        }
+
+        match event.code {
             KeyCode::Char('/') => self.enter_quick_search_mode(),
             KeyCode::Esc => self.exit_quick_search_mode(),
             _ => {}
