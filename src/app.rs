@@ -1,10 +1,12 @@
 use clipboard::{ClipboardContext, ClipboardProvider};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use num_traits::AsPrimitive;
 use tui::backend::Backend;
 use tui::layout::{Alignment, Constraint, Direction::Vertical, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
 use tui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
 use tui::Frame;
+use unicode_width::UnicodeWidthStr;
 
 use crate::log_table::LogTable;
 use crate::logentry::LogEntry;
@@ -24,6 +26,14 @@ pub struct App<'a> {
     table: LogTable<'a>,
     fps: fps_counter::FPSCounter,
     input_event_message: String,
+    quick_search_mode_active: bool,
+    quick_search_string: String,
+}
+
+struct AppLayout {
+    table: Rect,
+    quick_search: Rect,
+    status_bar: Rect,
 }
 
 impl<'a> App<'a> {
@@ -38,14 +48,43 @@ impl<'a> App<'a> {
             fps: fps_counter::FPSCounter::new(),
             should_quit: false,
             input_event_message: String::new(),
+            quick_search_mode_active: false,
+            quick_search_string: String::new(),
+        }
+    }
+
+    fn layout<B: Backend>(&self, f: &mut Frame<B>) -> AppLayout {
+        let has_search_field =
+            self.quick_search_mode_active || !self.quick_search_string.is_empty();
+
+        let constraints = if has_search_field {
+            [
+                Constraint::Min(1),
+                Constraint::Length(1),
+                Constraint::Length(1),
+            ]
+        } else {
+            [
+                Constraint::Min(1),
+                Constraint::Length(0),
+                Constraint::Length(1),
+            ]
+        };
+
+        let chunks = Layout::default()
+            .direction(Vertical)
+            .constraints(constraints.as_ref())
+            .split(f.size());
+
+        AppLayout {
+            table: chunks[0],
+            quick_search: chunks[1],
+            status_bar: chunks[2],
         }
     }
 
     pub fn draw<B: Backend>(&mut self, f: &mut Frame<B>) {
-        let chunks = Layout::default()
-            .direction(Vertical)
-            .constraints([Constraint::Min(1), Constraint::Length(1)].as_ref())
-            .split(f.size());
+        let layout = self.layout(f);
 
         self.table.viewport = Rect::new(0, 0, f.size().width, f.size().height - 4_u16);
 
@@ -79,9 +118,28 @@ impl<'a> App<'a> {
 
         let table_built = instant.elapsed();
 
-        f.render_stateful_widget(t, chunks[0], &mut self.table.state);
+        f.render_stateful_widget(t, layout.table, &mut self.table.state);
 
         let table_rendered = instant.elapsed();
+
+        let quick_search = Paragraph::new(self.quick_search_string.as_ref())
+            .style(if self.quick_search_mode_active {
+                Style::default()
+            } else {
+                Style::default().fg(Color::Yellow)
+            })
+            .block(Block::default().borders(Borders::LEFT));
+
+        f.render_widget(quick_search, layout.quick_search);
+
+        if self.quick_search_mode_active {
+            let w: u16 = self.quick_search_string.width().as_();
+            f.set_cursor(
+                // Put cursor past the end of the input text
+                layout.quick_search.x + w + 1,
+                layout.quick_search.y,
+            )
+        }
 
         let bottom_block = Paragraph::new(format!(
             "Row {}/{} FPS: {} table built in {}ms, table rendered in {}ms, {}",
@@ -94,7 +152,8 @@ impl<'a> App<'a> {
         ))
         .style(Style::default().fg(Color::LightCyan))
         .alignment(Alignment::Left);
-        f.render_widget(bottom_block, chunks[1]);
+
+        f.render_widget(bottom_block, layout.status_bar);
     }
 
     fn copy_line(&self) {
@@ -173,8 +232,17 @@ impl<'a> App<'a> {
             }
             KeyCode::Home => self.table.first(),
             KeyCode::End => self.table.last(),
+            KeyCode::Char('/') => self.enter_quick_search_mode(),
+            KeyCode::Esc => self.exit_quick_search_mode(),
             _ => {}
         }
+    }
+
+    fn enter_quick_search_mode(&mut self) {
+        self.quick_search_mode_active = true
+    }
+    fn exit_quick_search_mode(&mut self) {
+        self.quick_search_mode_active = false
     }
 }
 
