@@ -5,12 +5,13 @@ use unicode_width::UnicodeWidthStr;
 use crate::logentry::LogEntry;
 use crate::text_utils::create_text;
 use crate::COLUMN_NUMBER;
+use num_traits::AsPrimitive;
 
 #[allow(dead_code)]
 pub struct DisplayData<'a> {
     log_entry: &'a LogEntry,
     pub(crate) texts: Vec<String>,
-    pub(crate) widths: Vec<u16>,
+    pub(crate) widths: Vec<usize>,
     pub(crate) wrapped: bool,
 }
 
@@ -28,7 +29,7 @@ impl<'a> DisplayData<'a> {
 
         let widths = texts
             .iter()
-            .map(|s| UnicodeWidthStr::width(s.as_str()) as u16)
+            .map(|s| UnicodeWidthStr::width(s.as_str()))
             .collect();
 
         DisplayData {
@@ -38,11 +39,11 @@ impl<'a> DisplayData<'a> {
             wrapped: false,
         }
     }
-    pub fn as_row(&self, column_offset: usize, available_message_width: u16) -> Row {
+    pub fn as_row(&self, column_offset: usize, available_message_width: usize) -> Row {
         if self.wrapped && self.widths.last().unwrap() > &available_message_width {
             let message = self.texts.last().unwrap();
             let text = create_text(message, available_message_width);
-            let height = text.height() as u16;
+            let height = text.height();
 
             Row::new(
                 self.texts
@@ -52,7 +53,7 @@ impl<'a> DisplayData<'a> {
                     .map(|c| Cell::from(c.as_str()))
                     .chain(std::iter::once(Cell::from(text))),
             )
-            .height(height)
+            .height(height.as_())
         } else {
             Row::new(
                 self.texts

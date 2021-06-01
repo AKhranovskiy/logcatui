@@ -1,6 +1,3 @@
-use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
-
 use clipboard::{ClipboardContext, ClipboardProvider};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tui::backend::Backend;
@@ -13,48 +10,20 @@ use crate::log_table::LogTable;
 use crate::logentry::LogEntry;
 use crate::COLUMN_HEADERS;
 
-#[derive(PartialEq, Eq, Debug, Copy, Clone)]
-enum StyleKey {
-    Header,
-    SelectedRow,
-}
-
-impl Hash for StyleKey {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write_u32(*self as u32)
-    }
-
-    fn hash_slice<H: Hasher>(data: &[Self], state: &mut H)
-    where
-        Self: Sized,
-    {
-        data.iter().for_each(|&s| state.write_u32(s as u32))
-    }
+lazy_static! {
+    static ref STYLE_HEADER: Style = Style::default()
+        .add_modifier(Modifier::BOLD)
+        .fg(Color::White)
+        .bg(Color::DarkGray);
+    static ref STYLE_SELECTED_ROW: Style = Style::default().add_modifier(Modifier::REVERSED);
 }
 
 pub struct App<'a> {
     pub should_quit: bool,
     title: String,
-    styles: HashMap<StyleKey, Style>,
     table: LogTable<'a>,
     fps: fps_counter::FPSCounter,
     input_event_message: String,
-}
-
-fn init_styles() -> HashMap<StyleKey, Style> {
-    let mut styles = HashMap::new();
-    styles.insert(
-        StyleKey::Header,
-        Style::default()
-            .add_modifier(Modifier::BOLD)
-            .fg(Color::White)
-            .bg(Color::DarkGray),
-    );
-    styles.insert(
-        StyleKey::SelectedRow,
-        Style::default().add_modifier(Modifier::REVERSED),
-    );
-    styles
 }
 
 impl<'a> App<'a> {
@@ -65,7 +34,6 @@ impl<'a> App<'a> {
 
         App {
             title,
-            styles: init_styles(),
             table,
             fps: fps_counter::FPSCounter::new(),
             should_quit: false,
@@ -79,7 +47,7 @@ impl<'a> App<'a> {
             .constraints([Constraint::Min(1), Constraint::Length(1)].as_ref())
             .split(f.size());
 
-        self.table.viewport = Rect::new(0, 0, f.size().width, f.size().height - 4u16);
+        self.table.viewport = Rect::new(0, 0, f.size().width, f.size().height - 4_u16);
 
         let instant = std::time::Instant::now();
 
@@ -88,7 +56,7 @@ impl<'a> App<'a> {
             .skip(self.table.column_offset)
             .map(|h| Cell::from(*h));
 
-        let header = Row::new(header_cells).style(self.styles[&StyleKey::Header]);
+        let header = Row::new(header_cells).style(*STYLE_HEADER);
 
         let available_message_width = self.table.available_message_width();
         let rows = self
@@ -105,7 +73,7 @@ impl<'a> App<'a> {
                     .borders(Borders::ALL)
                     .title(self.title.as_str()),
             )
-            .highlight_style(self.styles[&StyleKey::SelectedRow])
+            .highlight_style(*STYLE_SELECTED_ROW)
             .column_spacing(1)
             .widths(&constraints);
 
@@ -117,7 +85,7 @@ impl<'a> App<'a> {
 
         let bottom_block = Paragraph::new(format!(
             "Row {}/{} FPS: {} table built in {}ms, table rendered in {}ms, {}",
-            self.table.state.selected().map(|v| v + 1).unwrap_or(0),
+            self.table.state.selected().map_or(0, |v| v + 1),
             self.table.len(),
             self.fps.tick(),
             table_built.as_millis(),

@@ -1,8 +1,8 @@
 use tui::text::Text;
 use unicode_segmentation::UnicodeSegmentation;
 
-pub fn create_text(content: &str, wrap_width: u16) -> Text {
-    if content.len() > wrap_width as usize {
+pub fn create_text(content: &str, wrap_width: usize) -> Text {
+    if content.len() > wrap_width {
         let indices = wrap_indices(content, wrap_width);
         assert!(!indices.is_empty());
 
@@ -19,14 +19,14 @@ pub fn create_text(content: &str, wrap_width: u16) -> Text {
     }
 }
 
-fn wrap_indices(text: &str, max_width: u16) -> Vec<u16> {
-    let word_indices = text.split_word_bound_indices().map(|(pos, _)| pos as u16);
+fn wrap_indices(text: &str, max_width: usize) -> Vec<usize> {
+    let word_indices = text.split_word_bound_indices().map(|(pos, _)| pos);
 
     let mut lines = vec![];
     let mut prev = None;
     let mut len = max_width;
 
-    for pos in word_indices.chain(std::iter::once(text.len() as u16)) {
+    for pos in word_indices.chain(std::iter::once(text.len())) {
         if pos > len {
             if let Some(prev) = prev {
                 lines.push(prev)
@@ -41,10 +41,10 @@ fn wrap_indices(text: &str, max_width: u16) -> Vec<u16> {
     lines
 }
 
-fn split_string_at_indices<'a>(s: &'a str, indices: &[u16]) -> Vec<&'a str> {
-    assert!((*indices.iter().max().unwrap_or(&0) as usize) < s.len());
+fn split_string_at_indices<'a>(s: &'a str, indices: &[usize]) -> Vec<&'a str> {
+    assert!(*indices.iter().max().unwrap_or(&0) < s.len());
 
-    let mut off = 0u16;
+    let mut off = 0_usize;
     let mut ms = s;
     let mut parts: Vec<&str> = indices
         .iter()

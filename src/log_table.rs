@@ -4,12 +4,13 @@ use tui::widgets::TableState;
 use crate::display_data::DisplayData;
 use crate::logentry::LogEntry;
 use crate::COLUMN_NUMBER;
+use num_traits::AsPrimitive;
 
 pub struct LogTable<'a> {
     pub(crate) state: TableState,
     pub(crate) model: &'a [LogEntry],
     pub(crate) display_data: Vec<DisplayData<'a>>,
-    pub(crate) column_widths: Vec<u16>,
+    pub(crate) column_widths: Vec<usize>,
     pub(crate) viewport: Rect,
     pub(crate) column_offset: usize,
 }
@@ -22,7 +23,7 @@ impl<'a> LogTable<'a> {
         let mut column_widths =
             display_data
                 .iter()
-                .fold(vec![0u16; COLUMN_NUMBER], |max_widths, data| {
+                .fold(vec![0_usize; COLUMN_NUMBER], |max_widths, data| {
                     data.widths
                         .iter()
                         .zip(max_widths)
@@ -106,21 +107,21 @@ impl<'a> LogTable<'a> {
         }
     }
 
-    pub fn available_message_width(&self) -> u16 {
+    pub fn available_message_width(&self) -> usize {
         let width_without_message = self
             .column_widths
             .iter()
             .take(COLUMN_NUMBER - 1)
             .skip(self.column_offset)
-            .sum::<u16>();
-        let column_spacing: u16 = (COLUMN_NUMBER - self.column_offset) as u16;
-        self.viewport.width - width_without_message - column_spacing
+            .sum::<usize>();
+        let column_spacing = COLUMN_NUMBER - self.column_offset;
+        self.viewport.width as usize - width_without_message - column_spacing
     }
 
     pub(crate) fn column_constraints(&self) -> Vec<Constraint> {
         self.column_widths[self.column_offset..]
             .iter()
-            .map(|&w| Constraint::Length(w))
+            .map(|&w| Constraint::Length(w.as_()))
             .collect::<Vec<_>>()
     }
 

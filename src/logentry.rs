@@ -42,41 +42,35 @@ impl FromStr for LogEntry {
         let mut parts = s.split_ascii_whitespace();
         let date = parts.next();
         let time = parts.next();
-        let pid = parts.next();
-        let tid = parts.next();
+        let process_id = parts.next();
+        let thread_id = parts.next();
         let level = parts.next();
         let tag = parts.next();
         let message = parts.collect::<Vec<_>>().join(" ");
 
         let timestamp = date
             .zip(time)
-            .map(|(date, time)| {
+            .and_then(|(date, time)| {
                 format!("2021-{}T{}Z", &date, &time)
                     .parse::<DateTime<Utc>>()
                     .ok()
             })
-            .flatten()
             .ok_or(())?;
 
-        let pid = pid
-            .map(|s| s.parse::<ProcessID>().ok())
-            .flatten()
+        let process_id = process_id
+            .and_then(|s| s.parse::<ProcessID>().ok())
             .ok_or(())?;
-        let tid = tid
-            .map(|s| s.parse::<ThreadID>().ok())
-            .flatten()
+        let thread_id = thread_id
+            .and_then(|s| s.parse::<ThreadID>().ok())
             .ok_or(())?;
-        let level = level
-            .map(|s| s.parse::<LogLevel>().ok())
-            .flatten()
-            .ok_or(())?;
+        let level = level.and_then(|s| s.parse::<LogLevel>().ok()).ok_or(())?;
         let tag = tag.map(|s| s.trim_end_matches(&[' ', ':'][..])).ok_or(())?;
         let message = message.trim_start_matches(&[' ', ':'][..]);
 
         Ok(LogEntry {
             timestamp,
-            process_id: pid,
-            thread_id: tid,
+            process_id,
+            thread_id,
             log_level: level,
             tag: tag.to_string(),
             message: message.to_string(),

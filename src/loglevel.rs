@@ -14,13 +14,17 @@ pub enum LogLevel {
 
 impl Display for LogLevel {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", match self {
-            LogLevel::Verbose => 'V',
-            LogLevel::Debug => 'D',
-            LogLevel::Warning => 'W',
-            LogLevel::Info => 'I',
-            LogLevel::Error => 'E'
-        })
+        write!(
+            f,
+            "{}",
+            match self {
+                LogLevel::Verbose => 'V',
+                LogLevel::Debug => 'D',
+                LogLevel::Warning => 'W',
+                LogLevel::Info => 'I',
+                LogLevel::Error => 'E',
+            }
+        )
     }
 }
 
@@ -28,15 +32,16 @@ impl FromStr for LogLevel {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        s.chars().next().map(|c| {
-            match c.to_uppercase().next() {
+        s.chars()
+            .next()
+            .and_then(|c| match c.to_uppercase().next() {
                 Some('V') => Some(LogLevel::Verbose),
                 Some('D') => Some(LogLevel::Debug),
                 Some('W') => Some(LogLevel::Warning),
                 Some('I') => Some(LogLevel::Info),
                 Some('E') => Some(LogLevel::Error),
-                _ => None
-            }
-        }).flatten().ok_or(())
+                _ => None,
+            })
+            .ok_or(())
     }
 }

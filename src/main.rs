@@ -1,5 +1,8 @@
 #![feature(result_flattening)]
 
+#[macro_use]
+extern crate lazy_static;
+
 use std::time::Duration;
 use std::{env, error::Error, fs, io, process};
 
@@ -50,27 +53,21 @@ fn main() -> Result<(), Box<dyn Error>> {
         start.elapsed().as_millis()
     );
 
-    let mut app = app::App::init(input_file, &model);
-
     execute!(io::stdout(), EnterAlternateScreen)?;
     crossterm::terminal::enable_raw_mode()?;
 
     let backend = CrosstermBackend::new(io::stdout());
     let mut terminal = Terminal::new(backend)?;
 
-    loop {
+    let mut app = app::App::init(input_file, &model);
+
+    while !app.should_quit {
         terminal.draw(|f| app.draw(f))?;
 
         while (poll(Duration::from_millis(0)))? {
-            match read()? {
-                Event::Key(event) => app.input(&event),
-                Event::Mouse(_) => {}
-                Event::Resize(_, _) => {}
+            if let Event::Key(event) = read()? {
+                app.input(&event)
             }
-        }
-
-        if app.should_quit {
-            break;
         }
     }
 
