@@ -61,13 +61,17 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut app = app::App::init(input_file, &model);
 
-    while !app.should_quit {
+    loop {
         terminal.draw(|f| app.draw(f))?;
 
         while (poll(Duration::from_millis(0)))? {
             if let Event::Key(event) = read()? {
                 app.input(&event)
             }
+        }
+
+        if app.should_quit {
+            break;
         }
     }
 
