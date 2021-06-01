@@ -39,7 +39,7 @@ pub struct App<'a> {
     styles: HashMap<StyleKey, Style>,
     table: LogTable<'a>,
     fps: fps_counter::FPSCounter,
-    last_key: Option<Key>,
+    input_event_message: String,
 }
 
 fn init_styles() -> HashMap<StyleKey, Style> {
@@ -70,7 +70,7 @@ impl<'a> App<'a> {
             table,
             fps: fps_counter::FPSCounter::new(),
             should_quit: false,
-            last_key: None,
+            input_event_message: String::new(),
         }
     }
 
@@ -117,13 +117,13 @@ impl<'a> App<'a> {
         let table_rendered = instant.elapsed();
 
         let bottom_block = Paragraph::new(format!(
-            "Row {}/{} FPS: {} table built in {}ms, table rendered in {}ms, last key: {:?}",
+            "Row {}/{} FPS: {} table built in {}ms, table rendered in {}ms, {}",
             self.table.state.selected().map(|v| v + 1).unwrap_or(0),
             self.table.len(),
             self.fps.tick(),
             table_built.as_millis(),
             (table_rendered - table_built).as_millis(),
-            self.last_key
+            self.input_event_message
         ))
         .style(Style::default().fg(Color::LightCyan))
         .alignment(Alignment::Left);
@@ -155,7 +155,8 @@ impl<'a> App<'a> {
     }
 
     pub fn input(&mut self, key: &Key) {
-        self.last_key = Some(*key);
+        self.input_event_message.clear();
+
         match key {
             Key::Char('q') | Key::Ctrl('c') => self.should_quit = true,
             Key::Down => {
@@ -181,9 +182,17 @@ impl<'a> App<'a> {
             }
             Key::Char('y') => {
                 self.copy_line();
+                self.input_event_message = format!(
+                    "Copied the line {} to clipboard",
+                    self.table.state.selected().unwrap()
+                );
             }
             Key::Char('Y') => {
                 self.copy_message();
+                self.input_event_message = format!(
+                    "Copied the message from the line {} to clipboard",
+                    self.table.state.selected().unwrap_or(0) + 1
+                );
             }
             Key::Home => self.table.first(),
             Key::End => self.table.last(),
