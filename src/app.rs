@@ -18,6 +18,9 @@ lazy_static! {
         .fg(Color::White)
         .bg(Color::DarkGray);
     static ref STYLE_SELECTED_ROW: Style = Style::default().add_modifier(Modifier::REVERSED);
+    static ref STYLE_QUICK_SEARCH: Style = Style::default()
+        .fg(Color::Yellow)
+        .add_modifier(Modifier::BOLD);
 }
 
 pub struct App<'a> {
@@ -149,8 +152,8 @@ impl<'a> App<'a> {
                 )
             }
             QuickSearchMode::Iteration => {
-                let block = Paragraph::new(format!("/ {}", self.quick_search.input))
-                    .style(Style::default().fg(Color::Yellow))
+                let block = Paragraph::new(format!("/{}", self.quick_search.input))
+                    .style(*STYLE_QUICK_SEARCH)
                     .block(Block::default().borders(Borders::NONE));
                 f.render_widget(block, layout.quick_search);
             }
@@ -204,81 +207,59 @@ impl<'a> App<'a> {
         self.should_quit = true
     }
 
+    fn regular_input(&mut self, event: &KeyEvent) {
+        match event.code {
+            KeyCode::Char('q') => self.quit(),
+            KeyCode::Char('c') => {
+                if with_ctrl(event) {
+                    self.quit()
+                }
+            }
+            KeyCode::Down => self.table.next(),
+            KeyCode::Up => self.table.previous(),
+            KeyCode::PageDown => self.table.next_page(),
+            KeyCode::PageUp => self.table.previous_page(),
+            KeyCode::Left => self.table.left(),
+            KeyCode::Right => self.table.right(),
+            KeyCode::Enter => self.table.wrap_message(),
+            KeyCode::Char('y') => self.copy_line(),
+            KeyCode::Char('Y') => self.copy_message(),
+            KeyCode::Home => self.table.first(),
+            KeyCode::End => self.table.last(),
+            KeyCode::Char('/') => self.quick_search.mode = QuickSearchMode::Input,
+            _ => {}
+        }
+    }
     pub fn input(&mut self, event: &KeyEvent) {
         self.input_event_message.clear();
 
         match self.quick_search.mode {
-            QuickSearchMode::Off => match event.code {
-                KeyCode::Char('q') => self.quit(),
-                KeyCode::Char('c') => {
-                    if with_ctrl(event) {
-                        self.quit()
-                    }
-                }
-
-                KeyCode::Down => self.table.next(),
-                KeyCode::Up => self.table.previous(),
-                KeyCode::PageDown => self.table.next_page(),
-                KeyCode::PageUp => self.table.previous_page(),
-                KeyCode::Left => self.table.left(),
-                KeyCode::Right => self.table.right(),
-                KeyCode::Enter => self.table.wrap_message(),
-                KeyCode::Char('y') => self.copy_line(),
-                KeyCode::Char('Y') => self.copy_message(),
-                KeyCode::Home => self.table.first(),
-                KeyCode::End => self.table.last(),
-                KeyCode::Char('/') => self.quick_search.mode = QuickSearchMode::Input,
-                _ => {}
-            },
+            QuickSearchMode::Off => self.regular_input(&event),
             QuickSearchMode::Input => match event.code {
                 KeyCode::Esc => {
                     self.quick_search.mode = QuickSearchMode::Off;
                     self.quick_search.input.clear();
                 }
                 KeyCode::Enter => {
-                    self.quick_search.mode = QuickSearchMode::Iteration;
+                    if self.quick_search.input.is_empty() {
+                        self.quick_search.mode = QuickSearchMode::Off
+                    } else {
+                        self.quick_search.mode = QuickSearchMode::Iteration
+                    }
                 }
-                KeyCode::Backspace => {
-                    self.quick_search.input.clear();
-                }
-                KeyCode::Char(c) => {
-                    self.quick_search.input.push(c);
-                }
+                KeyCode::Backspace => self.quick_search.input.clear(),
+                KeyCode::Char(c) => self.quick_search.input.push(c),
                 _ => {}
             },
             QuickSearchMode::Iteration => match event.code {
-                KeyCode::Esc => {
-                    self.quick_search.mode = QuickSearchMode::Off;
-                    // self.quick_search.input.clear();
-                }
+                KeyCode::Esc => self.quick_search.mode = QuickSearchMode::Off,
                 KeyCode::Char('n') => {
                     self.input_event_message = "Go to next search result.".to_string();
-                    // to next search result
                 }
                 KeyCode::Char('N') => {
                     self.input_event_message = "Go to prev search result.".to_string();
-                    // to prev search result
                 }
-
-                KeyCode::Char('q') => self.quit(),
-                KeyCode::Char('c') => {
-                    if with_ctrl(event) {
-                        self.quit()
-                    }
-                }
-                KeyCode::Down => self.table.next(),
-                KeyCode::Up => self.table.previous(),
-                KeyCode::PageDown => self.table.next_page(),
-                KeyCode::PageUp => self.table.previous_page(),
-                KeyCode::Left => self.table.left(),
-                KeyCode::Right => self.table.right(),
-                KeyCode::Enter => self.table.wrap_message(),
-                KeyCode::Char('y') => self.copy_line(),
-                KeyCode::Char('Y') => self.copy_message(),
-                KeyCode::Home => self.table.first(),
-                KeyCode::End => self.table.last(),
-                KeyCode::Char('/') => self.quick_search.mode = QuickSearchMode::Input,
-                _ => {}
+                _ => self.regular_input(&event),
             },
         }
     }
