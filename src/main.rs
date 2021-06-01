@@ -61,7 +61,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     loop {
         terminal.draw(|f| app.draw(f))?;
 
-        if (poll(Duration::from_millis(100)))? {
+        while (poll(Duration::from_millis(0)))? {
             match read()? {
                 Event::Key(event) => app.input(&event),
                 Event::Mouse(_) => {}
