@@ -2,10 +2,9 @@ use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 
 use clipboard::{ClipboardContext, ClipboardProvider};
-use termion::event::Key;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tui::backend::Backend;
-use tui::layout::Direction::Vertical;
-use tui::layout::{Alignment, Constraint, Layout, Rect};
+use tui::layout::{Alignment, Constraint, Direction::Vertical, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
 use tui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
 use tui::Frame;
@@ -154,49 +153,63 @@ impl<'a> App<'a> {
         }
     }
 
-    pub fn input(&mut self, key: &Key) {
+    fn quit(&mut self) {
+        self.should_quit = true
+    }
+
+    pub fn input(&mut self, event: &KeyEvent) {
         self.input_event_message.clear();
 
-        match key {
-            Key::Char('q') | Key::Ctrl('c') => self.should_quit = true,
-            Key::Down => {
+        match event.code {
+            KeyCode::Char('q') => self.quit(),
+            KeyCode::Char('c') => {
+                if with_ctrl(event) {
+                    self.quit()
+                }
+            }
+
+            KeyCode::Down => {
                 self.table.next();
             }
-            Key::Up => {
+            KeyCode::Up => {
                 self.table.previous();
             }
-            Key::PageDown => {
+            KeyCode::PageDown => {
                 self.table.next_page();
             }
-            Key::PageUp => {
+            KeyCode::PageUp => {
                 self.table.previous_page();
             }
-            Key::Left => {
+            KeyCode::Left => {
                 self.table.left();
             }
-            Key::Right => {
+            KeyCode::Right => {
                 self.table.right();
             }
-            Key::Char('\n') => {
+            KeyCode::Enter => {
                 self.table.wrap_message();
             }
-            Key::Char('y') => {
+            KeyCode::Char('y') => {
                 self.copy_line();
                 self.input_event_message = format!(
                     "Copied the line {} to clipboard",
                     self.table.state.selected().unwrap()
                 );
             }
-            Key::Char('Y') => {
+            KeyCode::Char('Y') => {
                 self.copy_message();
                 self.input_event_message = format!(
                     "Copied the message from the line {} to clipboard",
                     self.table.state.selected().unwrap_or(0) + 1
                 );
             }
-            Key::Home => self.table.first(),
-            Key::End => self.table.last(),
+            KeyCode::Home => self.table.first(),
+            KeyCode::End => self.table.last(),
             _ => {}
         }
     }
+}
+
+fn with_ctrl(event: &KeyEvent) -> bool {
+    event.modifiers.contains(KeyModifiers::CONTROL)
 }

@@ -1,17 +1,18 @@
 #![feature(result_flattening)]
 
+use std::time::Duration;
 use std::{env, error::Error, fs, io, process};
 
-use termion::{input::MouseTerminal, raw::IntoRawMode, screen::AlternateScreen};
-use tui::backend::TermionBackend;
+use crossterm::event::{poll, read, Event};
+use crossterm::execute;
+use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
+use tui::backend::CrosstermBackend;
 use tui::Terminal;
 
-use crate::events::{Event, Events};
 use crate::logentry::LogEntry;
 
 mod app;
 mod display_data;
-mod events;
 mod log_table;
 mod logentry;
 mod loglevel;
@@ -51,26 +52,30 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut app = app::App::init(input_file, &model);
 
-    let stdout = io::stdout().into_raw_mode()?;
-    let stdout = MouseTerminal::from(stdout);
-    let stdout = AlternateScreen::from(stdout);
-    let backend = TermionBackend::new(stdout);
+    execute!(io::stdout(), EnterAlternateScreen)?;
+    crossterm::terminal::enable_raw_mode()?;
+
+    let backend = CrosstermBackend::new(io::stdout());
     let mut terminal = Terminal::new(backend)?;
 
-    let events = Events::new();
-
-    'main_loop: loop {
+    loop {
         terminal.draw(|f| app.draw(f))?;
 
-        for event in events.next_batch() {
-            if let Event::Input(key) = event {
-                app.input(&key);
-                if app.should_quit {
-                    break 'main_loop;
-                }
+        if (poll(Duration::from_millis(100)))? {
+            match read()? {
+                Event::Key(event) => app.input(&event),
+                Event::Mouse(_) => {}
+                Event::Resize(_, _) => {}
             }
         }
+
+        if app.should_quit {
+            break;
+        }
     }
+
+    crossterm::terminal::disable_raw_mode()?;
+    execute!(io::stdout(), LeaveAlternateScreen)?;
 
     Ok(())
 }
