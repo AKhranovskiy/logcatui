@@ -134,6 +134,18 @@ impl<'a> App<'a> {
         if let Some(selected) = self.table.state.selected() {
             if let Some(entry) = self.table.model.get(selected) {
                 ClipboardProvider::new()
+                    .map(|mut ctx: ClipboardContext| ctx.set_contents(format!("{}", entry)))
+                    .flatten()
+                    .map_err(|e| dbg!(e))
+                    .unwrap();
+            }
+        }
+    }
+
+    fn copy_message(&self) {
+        if let Some(selected) = self.table.state.selected() {
+            if let Some(entry) = self.table.model.get(selected) {
+                ClipboardProvider::new()
                     .map(|mut ctx: ClipboardContext| ctx.set_contents(entry.message.clone()))
                     .flatten()
                     .map_err(|e| dbg!(e))
@@ -169,6 +181,9 @@ impl<'a> App<'a> {
             }
             Key::Char('y') => {
                 self.copy_line();
+            }
+            Key::Char('Y') => {
+                self.copy_message();
             }
             Key::Home => self.table.first(),
             Key::End => self.table.last(),
