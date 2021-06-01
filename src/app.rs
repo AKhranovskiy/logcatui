@@ -227,24 +227,60 @@ impl<'a> App<'a> {
                 KeyCode::Char('Y') => self.copy_message(),
                 KeyCode::Home => self.table.first(),
                 KeyCode::End => self.table.last(),
+                KeyCode::Char('/') => self.quick_search.mode = QuickSearchMode::Input,
                 _ => {}
             },
-            QuickSearchMode::Input => {}
-            QuickSearchMode::Iteration => {}
-        }
+            QuickSearchMode::Input => match event.code {
+                KeyCode::Esc => {
+                    self.quick_search.mode = QuickSearchMode::Off;
+                    self.quick_search.input.clear();
+                }
+                KeyCode::Enter => {
+                    self.quick_search.mode = QuickSearchMode::Iteration;
+                }
+                KeyCode::Backspace => {
+                    self.quick_search.input.clear();
+                }
+                KeyCode::Char(c) => {
+                    self.quick_search.input.push(c);
+                }
+                _ => {}
+            },
+            QuickSearchMode::Iteration => match event.code {
+                KeyCode::Esc => {
+                    self.quick_search.mode = QuickSearchMode::Off;
+                    // self.quick_search.input.clear();
+                }
+                KeyCode::Char('n') => {
+                    self.input_event_message = "Go to next search result.".to_string();
+                    // to next search result
+                }
+                KeyCode::Char('N') => {
+                    self.input_event_message = "Go to prev search result.".to_string();
+                    // to prev search result
+                }
 
-        match event.code {
-            KeyCode::Char('/') => self.enter_quick_search_mode(),
-            KeyCode::Esc => self.exit_quick_search_mode(),
-            _ => {}
+                KeyCode::Char('q') => self.quit(),
+                KeyCode::Char('c') => {
+                    if with_ctrl(event) {
+                        self.quit()
+                    }
+                }
+                KeyCode::Down => self.table.next(),
+                KeyCode::Up => self.table.previous(),
+                KeyCode::PageDown => self.table.next_page(),
+                KeyCode::PageUp => self.table.previous_page(),
+                KeyCode::Left => self.table.left(),
+                KeyCode::Right => self.table.right(),
+                KeyCode::Enter => self.table.wrap_message(),
+                KeyCode::Char('y') => self.copy_line(),
+                KeyCode::Char('Y') => self.copy_message(),
+                KeyCode::Home => self.table.first(),
+                KeyCode::End => self.table.last(),
+                KeyCode::Char('/') => self.quick_search.mode = QuickSearchMode::Input,
+                _ => {}
+            },
         }
-    }
-
-    fn enter_quick_search_mode(&mut self) {
-        self.quick_search.mode = QuickSearchMode::Input;
-    }
-    fn exit_quick_search_mode(&mut self) {
-        self.quick_search.mode = QuickSearchMode::Off
     }
 }
 
