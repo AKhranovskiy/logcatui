@@ -300,8 +300,15 @@ impl<'a> App<'a> {
                     }
                 }
             }
-            // KeyCode::PageDown => self.table.next_page(),
-            // KeyCode::PageUp => self.table.previous_page(),
+            KeyCode::PageDown => {
+                self.vertical_offset = self
+                    .vertical_offset
+                    .saturating_add(self.height)
+                    .min(self.table.len() - self.height);
+            }
+            KeyCode::PageUp => {
+                self.vertical_offset = self.vertical_offset.saturating_sub(self.height);
+            }
             KeyCode::Left => self.table.left(),
             KeyCode::Right => self.table.right(),
             KeyCode::Enter => self.table.wrap_message(self.selected()),
