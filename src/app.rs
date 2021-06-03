@@ -272,7 +272,7 @@ impl<'a> App<'a> {
             KeyCode::Up => {
                 if let Some(selected) = self.state.selected() {
                     if selected == 0 {
-                        self.vertical_offset.saturating_sub(1);
+                        self.vertical_offset = self.vertical_offset.saturating_sub(1);
                     } else {
                         self.state.select(Some(selected - 1));
                     }
