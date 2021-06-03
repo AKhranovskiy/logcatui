@@ -1,13 +1,11 @@
+use num_traits::AsPrimitive;
 use tui::layout::{Constraint, Rect};
-use tui::widgets::TableState;
 
 use crate::display_data::DisplayData;
 use crate::logentry::LogEntry;
 use crate::COLUMN_NUMBER;
-use num_traits::AsPrimitive;
 
 pub struct LogTable<'a> {
-    pub(crate) state: TableState,
     pub(crate) model: &'a [LogEntry],
     pub(crate) display_data: Vec<DisplayData<'a>>,
     pub(crate) column_widths: Vec<usize>,
@@ -35,7 +33,6 @@ impl<'a> LogTable<'a> {
         column_widths[4] = 18;
 
         LogTable {
-            state: TableState::default(),
             model,
             display_data,
             column_widths,
@@ -54,42 +51,42 @@ impl<'a> LogTable<'a> {
     }
 
     pub fn next(&mut self) {
-        let next_item = self
-            .state
-            .selected()
-            .map(|idx| idx.saturating_add(1).min(self.len() - 1))
-            .or(Some(0));
-        self.state.select(next_item);
+        // let next_item = self
+        //     .state
+        //     .selected()
+        //     .map(|idx| idx.saturating_add(1).min(self.len() - 1))
+        //     .or(Some(0));
+        // self.state.select(next_item);
     }
 
-    fn page_size(&self) -> usize {
-        self.viewport.height as usize
-    }
+    // fn page_size(&self) -> usize {
+    //     self.viewport.height as usize
+    // }
 
     pub fn next_page(&mut self) {
-        let next_item = self
-            .state
-            .selected()
-            .map(|idx| idx.saturating_add(self.page_size()).min(self.len() - 1))
-            .or(Some(0));
-        self.state.select(next_item);
+        // let next_item = self
+        //     .state
+        //     .selected()
+        //     .map(|idx| idx.saturating_add(self.page_size()).min(self.len() - 1))
+        //     .or(Some(0));
+        // self.state.select(next_item);
     }
 
     pub fn previous(&mut self) {
-        let prev_item = self
-            .state
-            .selected()
-            .map(|idx| idx.saturating_sub(1))
-            .or(Some(0));
-        self.state.select(prev_item);
+        // let prev_item = self
+        //     .state
+        //     .selected()
+        //     .map(|idx| idx.saturating_sub(1))
+        //     .or(Some(0));
+        // self.state.select(prev_item);
     }
     pub fn previous_page(&mut self) {
-        let prev_item = self
-            .state
-            .selected()
-            .map(|idx| idx.saturating_sub(self.page_size()))
-            .or(Some(0));
-        self.state.select(prev_item);
+        // let prev_item = self
+        //     .state
+        //     .selected()
+        //     .map(|idx| idx.saturating_sub(self.page_size()))
+        //     .or(Some(0));
+        // self.state.select(prev_item);
     }
 
     pub fn right(&mut self) {
@@ -100,11 +97,11 @@ impl<'a> LogTable<'a> {
     }
 
     pub fn wrap_message(&mut self) {
-        if let Some(selected) = self.state.selected() {
-            if let Some(data) = self.display_data.get_mut(selected) {
-                data.wrapped = !data.wrapped
-            }
-        }
+        // if let Some(selected) = self.state.selected() {
+        //     if let Some(data) = self.display_data.get_mut(selected) {
+        //         data.wrapped = !data.wrapped
+        //     }
+        // }
     }
 
     pub fn available_message_width(&self) -> usize {
@@ -126,10 +123,10 @@ impl<'a> LogTable<'a> {
     }
 
     pub(crate) fn first(&mut self) {
-        self.state.select(Some(0))
+        // self.state.select(Some(0))
     }
     pub(crate) fn last(&mut self) {
-        self.state.select(Some(self.model.len().saturating_sub(1)))
+        // self.state.select(Some(self.model.len().saturating_sub(1)))
     }
     // pub fn
 }

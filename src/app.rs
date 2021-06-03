@@ -6,7 +6,7 @@ use num_traits::AsPrimitive;
 use tui::backend::Backend;
 use tui::layout::{Alignment, Constraint, Direction::Vertical, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
-use tui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
+use tui::widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState};
 use tui::Frame;
 use unicode_width::UnicodeWidthStr;
 
@@ -29,9 +29,11 @@ pub struct App<'a> {
     pub should_quit: bool,
     title: String,
     table: LogTable<'a>,
+    state: TableState,
     fps: fps_counter::FPSCounter,
     input_event_message: String,
     quick_search: QuickSearchState,
+    vertical_offset: usize,
 }
 
 struct AppLayout {
@@ -77,17 +79,18 @@ enum QuickSearchMode {
 
 impl<'a> App<'a> {
     pub fn init(title: String, model: &'a [LogEntry]) -> Self {
-        let mut table = LogTable::new(&model);
         // Select first line by default;
-        table.next();
+        // table.next();
 
         App {
             title,
-            table,
+            table: LogTable::new(&model),
+            state: TableState::default(),
             fps: fps_counter::FPSCounter::new(),
             should_quit: false,
             input_event_message: String::new(),
             quick_search: QuickSearchState::default(),
+            vertical_offset: 0,
         }
     }
 
@@ -114,6 +117,10 @@ impl<'a> App<'a> {
             quick_search: chunks[1],
             status_bar: chunks[2],
         }
+    }
+
+    fn selected(&self) -> usize {
+        self.vertical_offset + self.state.selected().unwrap_or(0)
     }
 
     pub fn draw<B: Backend>(&mut self, f: &mut Frame<B>) {
@@ -151,7 +158,7 @@ impl<'a> App<'a> {
 
         let table_built = instant.elapsed();
 
-        f.render_stateful_widget(t, layout.table, &mut self.table.state);
+        f.render_stateful_widget(t, layout.table, &mut self.state);
 
         let table_rendered = instant.elapsed();
 
@@ -178,7 +185,7 @@ impl<'a> App<'a> {
 
         let bottom_block = Paragraph::new(format!(
             "Row {}/{} FPS: {} table built in {}ms, table rendered in {}ms, {} {}",
-            self.table.state.selected().map_or(0, |v| v + 1),
+            self.selected() + 1,
             self.table.len(),
             self.fps.tick(),
             table_built.as_millis(),
@@ -204,30 +211,28 @@ impl<'a> App<'a> {
     }
 
     fn copy_line(&mut self) {
-        if let Some(selected) = self.table.state.selected() {
-            if let Some(entry) = self.table.model.get(selected) {
-                self.input_event_message = match ClipboardProvider::new()
-                    .and_then(|mut ctx: ClipboardContext| ctx.set_contents(format!("{}", entry)))
-                {
-                    Ok(()) => format!("Copied the line {} to clipboard", selected + 1),
-                    Err(ref e) => format!("Failed to copy line {}", e),
-                }
+        let selected = self.selected();
+        if let Some(entry) = self.table.model.get(selected) {
+            self.input_event_message = match ClipboardProvider::new()
+                .and_then(|mut ctx: ClipboardContext| ctx.set_contents(format!("{}", entry)))
+            {
+                Ok(()) => format!("Copied the line {} to clipboard", selected + 1),
+                Err(ref e) => format!("Failed to copy line {}", e),
             }
         }
     }
 
     fn copy_message(&mut self) {
-        if let Some(selected) = self.table.state.selected() {
-            if let Some(entry) = self.table.model.get(selected) {
-                self.input_event_message = match ClipboardProvider::new()
-                    .and_then(|mut ctx: ClipboardContext| ctx.set_contents(entry.message.clone()))
-                {
-                    Ok(()) => format!(
-                        "Copied the message from the line {} to clipboard",
-                        selected + 1
-                    ),
-                    Err(ref e) => format!("Failed to copy message {}", e),
-                }
+        let selected = self.selected();
+        if let Some(entry) = self.table.model.get(selected) {
+            self.input_event_message = match ClipboardProvider::new()
+                .and_then(|mut ctx: ClipboardContext| ctx.set_contents(entry.message.clone()))
+            {
+                Ok(()) => format!(
+                    "Copied the message from the line {} to clipboard",
+                    selected + 1
+                ),
+                Err(ref e) => format!("Failed to copy message {}", e),
             }
         }
     }
@@ -315,7 +320,8 @@ impl<'a> App<'a> {
 
     fn search_and_highlight(&mut self, query: &str) {
         assert!(!query.is_empty());
-        if let Some(selected) = self.table.state.selected() {
+        let selected = self.selected();
+        {
             let lower_bound = selected.saturating_sub(100);
             let upper_bound = selected.saturating_add(100).max(self.table.len() - 1);
 
