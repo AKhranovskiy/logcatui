@@ -50,45 +50,6 @@ impl<'a> LogTable<'a> {
         self.model.is_empty()
     }
 
-    pub fn next(&mut self) {
-        // let next_item = self
-        //     .state
-        //     .selected()
-        //     .map(|idx| idx.saturating_add(1).min(self.len() - 1))
-        //     .or(Some(0));
-        // self.state.select(next_item);
-    }
-
-    // fn page_size(&self) -> usize {
-    //     self.viewport.height as usize
-    // }
-
-    pub fn next_page(&mut self) {
-        // let next_item = self
-        //     .state
-        //     .selected()
-        //     .map(|idx| idx.saturating_add(self.page_size()).min(self.len() - 1))
-        //     .or(Some(0));
-        // self.state.select(next_item);
-    }
-
-    pub fn previous(&mut self) {
-        // let prev_item = self
-        //     .state
-        //     .selected()
-        //     .map(|idx| idx.saturating_sub(1))
-        //     .or(Some(0));
-        // self.state.select(prev_item);
-    }
-    pub fn previous_page(&mut self) {
-        // let prev_item = self
-        //     .state
-        //     .selected()
-        //     .map(|idx| idx.saturating_sub(self.page_size()))
-        //     .or(Some(0));
-        // self.state.select(prev_item);
-    }
-
     pub fn right(&mut self) {
         self.column_offset = self.column_offset.saturating_add(1).min(COLUMN_NUMBER - 1)
     }
@@ -119,12 +80,4 @@ impl<'a> LogTable<'a> {
             .map(|&w| Constraint::Length(w.as_()))
             .collect::<Vec<_>>()
     }
-
-    pub(crate) fn first(&mut self) {
-        // self.state.select(Some(0))
-    }
-    pub(crate) fn last(&mut self) {
-        // self.state.select(Some(self.model.len().saturating_sub(1)))
-    }
-    // pub fn
 }

@@ -1,5 +1,4 @@
-use std::collections::BTreeSet;
-use std::ops::Range;
+use std::collections::{BTreeMap, BTreeSet};
 
 use clipboard::{ClipboardContext, ClipboardProvider};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -36,6 +35,7 @@ pub struct App<'a> {
     quick_search: QuickSearchState,
     height: usize,
     vertical_offset: usize,
+    row_heights: BTreeMap<usize, usize>,
 }
 
 struct AppLayout {
@@ -98,6 +98,7 @@ impl<'a> App<'a> {
             quick_search: QuickSearchState::default(),
             height: 0,
             vertical_offset: 0,
+            row_heights: BTreeMap::new(),
         }
     }
 
@@ -151,13 +152,28 @@ impl<'a> App<'a> {
 
         let available_message_width = self.table.available_message_width();
         let (start, end) = self.visible_range();
-        let rows = self
+        let mut row_heights = self.row_heights.clone();
+        let mut full_height = self.height;
+        let rows: Vec<Row> = self
             .table
             .display_data
             .iter()
+            .enumerate()
             .skip(start)
             .take(end - start)
-            .map(|data| data.as_row(self.table.column_offset, available_message_width));
+            .map(|(index, data)| {
+                let (row, height) = data.as_row(self.table.column_offset, available_message_width);
+                if height > 1 {
+                    row_heights.insert(index, height);
+                    full_height -= height - 1;
+                } else if let Some(h) = row_heights.remove(&index) {
+                    full_height += h - 1;
+                }
+                row
+            })
+            .collect();
+        self.row_heights = row_heights;
+        self.height = full_height;
 
         let constraints = self.table.column_constraints();
         let t = Table::new(rows)
@@ -199,21 +215,14 @@ impl<'a> App<'a> {
         }
 
         let bottom_block = Paragraph::new(format!(
-            "Row {}/{} FPS: {} table built in {}ms, table rendered in {}ms, {} {}",
+            "Row {}/{} FPS: {} table built in {}ms, table rendered in {}ms, offset {}, height {}",
             self.selected() + 1,
             self.table.len(),
             self.fps.tick(),
             table_built.as_millis(),
             (table_rendered - table_built).as_millis(),
-            self.input_event_message,
-            match self.quick_search.mode {
-                QuickSearchMode::Off => {
-                    "".to_string()
-                }
-                QuickSearchMode::Input | QuickSearchMode::Iteration => {
-                    format!("Found {} matches", self.quick_search.matches.len())
-                }
-            }
+            self.vertical_offset,
+            self.height
         ))
         .style(Style::default().fg(Color::LightCyan))
         .alignment(Alignment::Left);
@@ -265,14 +274,27 @@ impl<'a> App<'a> {
                     if selected + 1 < self.height {
                         self.state.select(Some(selected + 1));
                     } else {
-                        self.vertical_offset += 1;
+                        let hiding_row_height =
+                            self.row_heights.get(&self.vertical_offset).unwrap_or(&1);
+                        eprintln!(
+                            "hiding {}, height {}",
+                            self.vertical_offset, hiding_row_height
+                        );
+                        self.vertical_offset += hiding_row_height;
                     }
                 }
             }
             KeyCode::Up => {
                 if let Some(selected) = self.state.selected() {
                     if selected == 0 {
-                        self.vertical_offset = self.vertical_offset.saturating_sub(1);
+                        let appearing_row_height =
+                            self.row_heights.get(&self.vertical_offset).unwrap_or(&1);
+                        eprintln!(
+                            "hiding {}, height {}",
+                            self.vertical_offset, appearing_row_height
+                        );
+                        self.vertical_offset =
+                            self.vertical_offset.saturating_sub(*appearing_row_height);
                     } else {
                         self.state.select(Some(selected - 1));
                     }
