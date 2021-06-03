@@ -269,7 +269,15 @@ impl<'a> App<'a> {
                     }
                 }
             }
-            KeyCode::Up => self.table.previous(),
+            KeyCode::Up => {
+                if let Some(selected) = self.state.selected() {
+                    if selected == 0 {
+                        self.vertical_offset.saturating_sub(1);
+                    } else {
+                        self.state.select(Some(selected - 1));
+                    }
+                }
+            }
             KeyCode::PageDown => self.table.next_page(),
             KeyCode::PageUp => self.table.previous_page(),
             KeyCode::Left => self.table.left(),
