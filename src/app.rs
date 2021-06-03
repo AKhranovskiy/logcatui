@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::ops::Range;
 
 use clipboard::{ClipboardContext, ClipboardProvider};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -33,6 +34,7 @@ pub struct App<'a> {
     fps: fps_counter::FPSCounter,
     input_event_message: String,
     quick_search: QuickSearchState,
+    height: usize,
     vertical_offset: usize,
 }
 
@@ -85,11 +87,16 @@ impl<'a> App<'a> {
         App {
             title,
             table: LogTable::new(&model),
-            state: TableState::default(),
+            state: {
+                let mut state = TableState::default();
+                state.select(Some(0));
+                state
+            },
             fps: fps_counter::FPSCounter::new(),
             should_quit: false,
             input_event_message: String::new(),
             quick_search: QuickSearchState::default(),
+            height: 0,
             vertical_offset: 0,
         }
     }
@@ -123,10 +130,15 @@ impl<'a> App<'a> {
         self.vertical_offset + self.state.selected().unwrap_or(0)
     }
 
+    fn visible_range(&self) -> (usize, usize) {
+        (self.vertical_offset, self.vertical_offset + self.height)
+    }
+
     pub fn draw<B: Backend>(&mut self, f: &mut Frame<B>) {
         let layout = self.layout(f);
 
         self.table.viewport = Rect::new(0, 0, f.size().width, f.size().height - 4_u16);
+        self.height = f.size().height.saturating_sub(4).as_();
 
         let instant = std::time::Instant::now();
 
@@ -138,10 +150,13 @@ impl<'a> App<'a> {
         let header = Row::new(header_cells).style(*STYLE_HEADER);
 
         let available_message_width = self.table.available_message_width();
+        let (start, end) = self.visible_range();
         let rows = self
             .table
             .display_data
             .iter()
+            .skip(start)
+            .take(end - start)
             .map(|data| data.as_row(self.table.column_offset, available_message_width));
 
         let constraints = self.table.column_constraints();
@@ -198,11 +213,7 @@ impl<'a> App<'a> {
                 QuickSearchMode::Input | QuickSearchMode::Iteration => {
                     format!("Found {} matches", self.quick_search.matches.len())
                 }
-            } // if self.quick_search.mode != QuickSearchMode::Off {
-              //     format!("Found {} entries", self.quick_search.matches.len())
-              // } else {
-              //     ""
-              // }
+            }
         ))
         .style(Style::default().fg(Color::LightCyan))
         .alignment(Alignment::Left);
@@ -249,7 +260,15 @@ impl<'a> App<'a> {
                     self.quit()
                 }
             }
-            KeyCode::Down => self.table.next(),
+            KeyCode::Down => {
+                if let Some(selected) = self.state.selected() {
+                    if selected + 1 < self.height {
+                        self.state.select(Some(selected + 1));
+                    } else {
+                        self.vertical_offset += 1;
+                    }
+                }
+            }
             KeyCode::Up => self.table.previous(),
             KeyCode::PageDown => self.table.next_page(),
             KeyCode::PageUp => self.table.previous_page(),
