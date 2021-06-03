@@ -96,12 +96,10 @@ impl<'a> LogTable<'a> {
         self.column_offset = self.column_offset.saturating_sub(1)
     }
 
-    pub fn wrap_message(&mut self) {
-        // if let Some(selected) = self.state.selected() {
-        //     if let Some(data) = self.display_data.get_mut(selected) {
-        //         data.wrapped = !data.wrapped
-        //     }
-        // }
+    pub fn wrap_message(&mut self, index: usize) {
+        if let Some(data) = self.display_data.get_mut(index) {
+            data.wrapped = !data.wrapped
+        }
     }
 
     pub fn available_message_width(&self) -> usize {

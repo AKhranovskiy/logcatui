@@ -278,22 +278,22 @@ impl<'a> App<'a> {
                     }
                 }
             }
-            KeyCode::PageDown => self.table.next_page(),
-            KeyCode::PageUp => self.table.previous_page(),
+            // KeyCode::PageDown => self.table.next_page(),
+            // KeyCode::PageUp => self.table.previous_page(),
             KeyCode::Left => self.table.left(),
             KeyCode::Right => self.table.right(),
-            KeyCode::Enter => self.table.wrap_message(),
-            KeyCode::Char('y') => self.copy_line(),
-            KeyCode::Char('Y') => self.copy_message(),
-            KeyCode::Home => self.table.first(),
-            KeyCode::End => self.table.last(),
-            KeyCode::Char('/') => {
-                self.quick_search.mode = QuickSearchMode::Input;
-                self.quick_search.matches.clear();
-                if !self.quick_search.input.is_empty() {
-                    self.search_and_highlight(&self.quick_search.input.clone());
-                }
-            }
+            KeyCode::Enter => self.table.wrap_message(self.selected()),
+            // KeyCode::Char('y') => self.copy_line(),
+            // KeyCode::Char('Y') => self.copy_message(),
+            // KeyCode::Home => self.table.first(),
+            // KeyCode::End => self.table.last(),
+            // KeyCode::Char('/') => {
+            //     self.quick_search.mode = QuickSearchMode::Input;
+            //     self.quick_search.matches.clear();
+            //     if !self.quick_search.input.is_empty() {
+            //         self.search_and_highlight(&self.quick_search.input.clone());
+            //     }
+            // }
             _ => {}
         }
     }
