@@ -301,15 +301,14 @@ impl<'a> App<'a> {
                 }
             }
             KeyCode::PageDown => {
-                // todo count wrapped rows
-                self.vertical_offset = self
-                    .vertical_offset
-                    .saturating_add(self.height)
-                    .min(self.table.len() - self.height);
+                for _ in 0..self.height {
+                    self.regular_input(&KeyEvent::from(KeyCode::Down));
+                }
             }
             KeyCode::PageUp => {
-                // todo count wrapped rows
-                self.vertical_offset = self.vertical_offset.saturating_sub(self.height);
+                for _ in 0..self.height {
+                    self.regular_input(&KeyEvent::from(KeyCode::Up));
+                }
             }
             KeyCode::Left => self.table.left(),
             KeyCode::Right => self.table.right(),
