@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::time::Instant;
 
@@ -410,12 +411,66 @@ impl<'a> App<'a> {
             });
     }
 
+    fn select(&mut self, line: Option<usize>) {
+        if let Some(line) = line {
+            if line >= self.visible_range().0 && line <= self.visible_range().1 {
+                self.state.select(Some(line - self.vertical_offset));
+            } else {
+                self.vertical_offset = line;
+                self.state.select(Some(0));
+            }
+        }
+    }
+
     fn jump_to_nearest_result(&mut self) {
-        // let selected = self.selected();
-        // self.quick_search.matches.range(())
+        use std::ops::Bound::{Included, Unbounded};
+
+        let selected = self.selected();
+        let sentinel = MatchedLine::new(selected, &[]);
+        let lower = self
+            .quick_search
+            .results
+            .range((Unbounded, Included(&sentinel)))
+            .next_back()
+            .map(|line| line.index);
+        let upper = self
+            .quick_search
+            .results
+            .range((Included(&sentinel), Unbounded))
+            .next()
+            .map(|line| line.index);
+
+        self.select(closest(selected, lower, upper));
     }
 }
 
 fn with_ctrl(event: &KeyEvent) -> bool {
     event.modifiers.contains(KeyModifiers::CONTROL)
+}
+
+fn closest(target: usize, lower: Option<usize>, upper: Option<usize>) -> Option<usize> {
+    let ld = distance(target, lower.unwrap_or(usize::MAX));
+    let ud = distance(target, upper.unwrap_or(usize::MAX));
+
+    if ld < ud {
+        lower
+    } else {
+        upper
+    }
+}
+
+fn distance(a: usize, b: usize) -> usize {
+    match a.cmp(&b) {
+        Ordering::Less => b - a,
+        Ordering::Equal => 0,
+        Ordering::Greater => a - b,
+    }
+}
+
+#[test]
+fn test_closest() {
+    assert_eq!(None, closest(0, None, None));
+    assert_eq!(Some(1), closest(0, Some(1), None));
+    assert_eq!(Some(1), closest(0, None, Some(1)));
+    assert_eq!(Some(1), closest(0, Some(1), Some(2)));
 }
