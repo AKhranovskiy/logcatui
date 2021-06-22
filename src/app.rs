@@ -12,7 +12,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::log_table::LogTable;
 use crate::logentry::LogEntry;
-use crate::COLUMN_HEADERS;
+use crate::{COLUMN_HEADERS, COLUMN_NUMBER};
 
 lazy_static! {
     static ref STYLE_HEADER: Style = Style::default()
@@ -313,10 +313,10 @@ impl<'a> App<'a> {
             KeyCode::Left => self.table.left(),
             KeyCode::Right => self.table.right(),
             KeyCode::Enter => self.table.wrap_message(self.selected()),
-            // KeyCode::Char('y') => self.copy_line(),
-            // KeyCode::Char('Y') => self.copy_message(),
-            // KeyCode::Home => self.table.first(),
-            // KeyCode::End => self.table.last(),
+            KeyCode::Char('y') => self.copy_line(),
+            KeyCode::Char('Y') => self.copy_message(),
+            KeyCode::Home => self.table.column_offset = 0,
+            KeyCode::End => self.table.column_offset = COLUMN_NUMBER - 1,
             // KeyCode::Char('/') => {
             //     self.quick_search.mode = QuickSearchMode::Input;
             //     self.quick_search.matches.clear();
