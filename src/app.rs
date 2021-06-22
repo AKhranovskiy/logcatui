@@ -299,7 +299,6 @@ impl<'a> App<'a> {
                 KeyCode::Esc => {
                     self.quick_search.mode = QuickSearchMode::Off;
                     self.quick_search.input.clear();
-                    self.clear_highlight();
                 }
                 KeyCode::Enter => {
                     if self.quick_search.input.is_empty() {
@@ -312,7 +311,6 @@ impl<'a> App<'a> {
                 }
                 KeyCode::Backspace => {
                     self.quick_search.input.clear();
-                    self.clear_highlight();
                 }
                 KeyCode::Char(c) => {
                     self.quick_search.input.push(c);
@@ -322,7 +320,6 @@ impl<'a> App<'a> {
             QuickSearchMode::Iteration => match event.code {
                 KeyCode::Esc => {
                     self.quick_search.mode = QuickSearchMode::Off;
-                    self.clear_highlight();
                 }
                 KeyCode::Char('n') => {
                     self.input_event_message = "Go to next search result.".to_string();
@@ -333,10 +330,6 @@ impl<'a> App<'a> {
                 _ => self.regular_input(event),
             },
         }
-    }
-
-    fn clear_highlight(&self) {
-        // todo!()
     }
 
     fn update_results(&mut self) {
