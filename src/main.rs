@@ -1,4 +1,5 @@
 #![feature(result_flattening)]
+#![feature(iter_advance_by)]
 
 #[macro_use]
 extern crate lazy_static;

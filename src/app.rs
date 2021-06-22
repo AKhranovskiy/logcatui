@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
+use std::ops::Bound::{Excluded, Included, Unbounded};
 use std::time::Instant;
 
 use clipboard::{ClipboardContext, ClipboardProvider};
@@ -322,10 +323,10 @@ impl<'a> App<'a> {
                     self.quick_search.mode = QuickSearchMode::Off;
                 }
                 KeyCode::Char('n') => {
-                    self.input_event_message = "Go to next search result.".to_string();
+                    self.jump_to_next_result();
                 }
                 KeyCode::Char('N') => {
-                    self.input_event_message = "Go to prev search result.".to_string();
+                    self.jump_to_previous_result();
                 }
                 _ => self.regular_input(event),
             },
@@ -416,8 +417,6 @@ impl<'a> App<'a> {
     }
 
     fn jump_to_nearest_result(&mut self) {
-        use std::ops::Bound::{Included, Unbounded};
-
         let selected = self.selected();
         let sentinel = MatchedLine::new(selected, &[]);
         let lower = self
@@ -434,6 +433,32 @@ impl<'a> App<'a> {
             .map(|line| line.index);
 
         self.select(closest(selected, lower, upper));
+    }
+
+    fn jump_to_next_result(&mut self) {
+        let selected = self.selected();
+        let sentinel = MatchedLine::new(selected, &[]);
+        let mut range = self
+            .quick_search
+            .results
+            .range((Excluded(&sentinel), Unbounded));
+
+        if range.advance_by(1).is_ok() {
+            let next = range.next().map(|line| line.index);
+            self.select(next);
+        }
+    }
+
+    fn jump_to_previous_result(&mut self) {
+        let selected = self.selected();
+        let sentinel = MatchedLine::new(selected, &[]);
+        let prev = self
+            .quick_search
+            .results
+            .range((Unbounded, Excluded(&sentinel)))
+            .next_back()
+            .map(|line| line.index);
+        self.select(prev);
     }
 }
 
