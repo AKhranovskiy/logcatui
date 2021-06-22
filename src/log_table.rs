@@ -71,7 +71,7 @@ impl<'a> LogTable<'a> {
             .skip(self.column_offset)
             .sum::<usize>();
         let column_spacing = COLUMN_NUMBER - self.column_offset;
-        self.viewport.width as usize - width_without_message - column_spacing
+        self.viewport.width as usize - 1 - width_without_message - column_spacing
     }
 
     pub(crate) fn column_constraints(&self) -> Vec<Constraint> {
