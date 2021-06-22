@@ -29,12 +29,12 @@ fn wrap_indices(text: &str, max_width: usize) -> Vec<usize> {
     for pos in word_indices.chain(std::iter::once(text.len())) {
         if pos > len {
             if let Some(prev) = prev {
-                lines.push(prev)
+                lines.push(prev);
             }
             prev = Some(pos);
             len += max_width;
         } else {
-            prev = Some(pos)
+            prev = Some(pos);
         }
     }
 

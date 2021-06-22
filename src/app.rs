@@ -1,4 +1,5 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
+use std::time::Instant;
 
 use clipboard::{ClipboardContext, ClipboardProvider};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -12,6 +13,9 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::log_table::LogTable;
 use crate::logentry::LogEntry;
+use crate::search::{
+    MatchedColumn, MatchedLine, MatchedPosition, QuickSearchMode, QuickSearchState,
+};
 use crate::{COLUMN_HEADERS, COLUMN_NUMBER};
 
 lazy_static! {
@@ -44,49 +48,11 @@ struct AppLayout {
     status_bar: Rect,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-struct QueryMatch {
-    index: usize,
-    column: usize, // todo use enum constant
-                   // todo matched positions
-}
-
-impl QueryMatch {
-    fn new(index: usize, column: usize) -> Self {
-        Self { index, column }
-    }
-}
-
-struct QuickSearchState {
-    mode: QuickSearchMode,
-    input: String,
-    matches: BTreeSet<QueryMatch>,
-}
-
-impl Default for QuickSearchState {
-    fn default() -> Self {
-        Self {
-            mode: QuickSearchMode::Off,
-            input: String::new(),
-            matches: BTreeSet::new(),
-        }
-    }
-}
-
-enum QuickSearchMode {
-    Off,
-    Input,
-    Iteration,
-}
-
 impl<'a> App<'a> {
     pub fn init(title: String, model: &'a [LogEntry]) -> Self {
-        // Select first line by default;
-        // table.next();
-
         App {
             title,
-            table: LogTable::new(&model),
+            table: LogTable::new(model),
             state: {
                 let mut state = TableState::default();
                 state.select(Some(0));
@@ -204,7 +170,7 @@ impl<'a> App<'a> {
                     // Put cursor past the end of the input text
                     layout.quick_search.x + 1 + w + 1,
                     layout.quick_search.y,
-                )
+                );
             }
             QuickSearchMode::Iteration => {
                 let block = Paragraph::new(format!("/{}", self.quick_search.input))
@@ -215,14 +181,21 @@ impl<'a> App<'a> {
         }
 
         let bottom_block = Paragraph::new(format!(
-            "Row {}/{} FPS: {} table built in {}ms, table rendered in {}ms, offset {}, height {}",
+            "Row {}/{} FPS: {} table built in {}ms, table rendered in {}ms, {}",
             self.selected() + 1,
             self.table.len(),
             self.fps.tick(),
             table_built.as_millis(),
             (table_rendered - table_built).as_millis(),
-            self.vertical_offset,
-            self.height
+            match self.quick_search.mode {
+                QuickSearchMode::Off | QuickSearchMode::Input => "".to_string(),
+                QuickSearchMode::Iteration => format!(
+                    "found {} matches of \"{}\" for {}ms",
+                    self.quick_search.results.len(),
+                    self.quick_search.input,
+                    self.quick_search.elapsed
+                ),
+            }
         ))
         .style(Style::default().fg(Color::LightCyan))
         .alignment(Alignment::Left);
@@ -258,7 +231,7 @@ impl<'a> App<'a> {
     }
 
     fn quit(&mut self) {
-        self.should_quit = true
+        self.should_quit = true;
     }
 
     fn regular_input(&mut self, event: &KeyEvent) {
@@ -266,7 +239,7 @@ impl<'a> App<'a> {
             KeyCode::Char('q') => self.quit(),
             KeyCode::Char('c') => {
                 if with_ctrl(event) {
-                    self.quit()
+                    self.quit();
                 }
             }
             KeyCode::Down => {
@@ -276,10 +249,6 @@ impl<'a> App<'a> {
                     } else {
                         let hiding_row_height =
                             self.row_heights.get(&self.vertical_offset).unwrap_or(&1);
-                        eprintln!(
-                            "hiding {}, height {}",
-                            self.vertical_offset, hiding_row_height
-                        );
                         self.vertical_offset += hiding_row_height;
                     }
                 }
@@ -289,10 +258,6 @@ impl<'a> App<'a> {
                     if selected == 0 {
                         let appearing_row_height =
                             self.row_heights.get(&self.vertical_offset).unwrap_or(&1);
-                        eprintln!(
-                            "hiding {}, height {}",
-                            self.vertical_offset, appearing_row_height
-                        );
                         self.vertical_offset =
                             self.vertical_offset.saturating_sub(*appearing_row_height);
                     } else {
@@ -317,13 +282,10 @@ impl<'a> App<'a> {
             KeyCode::Char('Y') => self.copy_message(),
             KeyCode::Home => self.table.column_offset = 0,
             KeyCode::End => self.table.column_offset = COLUMN_NUMBER - 1,
-            // KeyCode::Char('/') => {
-            //     self.quick_search.mode = QuickSearchMode::Input;
-            //     self.quick_search.matches.clear();
-            //     if !self.quick_search.input.is_empty() {
-            //         self.search_and_highlight(&self.quick_search.input.clone());
-            //     }
-            // }
+            KeyCode::Char('/') => {
+                self.quick_search.mode = QuickSearchMode::Input;
+                self.quick_search.results.clear();
+            }
             _ => {}
         }
     }
@@ -331,7 +293,7 @@ impl<'a> App<'a> {
         self.input_event_message.clear();
 
         match self.quick_search.mode {
-            QuickSearchMode::Off => self.regular_input(&event),
+            QuickSearchMode::Off => self.regular_input(event),
             QuickSearchMode::Input => match event.code {
                 KeyCode::Esc => {
                     self.quick_search.mode = QuickSearchMode::Off;
@@ -340,9 +302,11 @@ impl<'a> App<'a> {
                 }
                 KeyCode::Enter => {
                     if self.quick_search.input.is_empty() {
-                        self.quick_search.mode = QuickSearchMode::Off
+                        self.quick_search.mode = QuickSearchMode::Off;
                     } else {
-                        self.quick_search.mode = QuickSearchMode::Iteration
+                        self.quick_search.mode = QuickSearchMode::Iteration;
+                        self.update_results();
+                        self.jump_to_nearest_result();
                     }
                 }
                 KeyCode::Backspace => {
@@ -351,7 +315,6 @@ impl<'a> App<'a> {
                 }
                 KeyCode::Char(c) => {
                     self.quick_search.input.push(c);
-                    self.search_and_highlight(&self.quick_search.input.clone());
                 }
                 _ => {}
             },
@@ -366,7 +329,7 @@ impl<'a> App<'a> {
                 KeyCode::Char('N') => {
                     self.input_event_message = "Go to prev search result.".to_string();
                 }
-                _ => self.regular_input(&event),
+                _ => self.regular_input(event),
             },
         }
     }
@@ -375,41 +338,81 @@ impl<'a> App<'a> {
         // todo!()
     }
 
-    fn search_and_highlight(&mut self, query: &str) {
+    fn update_results(&mut self) {
+        let query = &self.quick_search.input;
         assert!(!query.is_empty());
-        let selected = self.selected();
-        {
-            let lower_bound = selected.saturating_sub(100);
-            let upper_bound = selected.saturating_add(100).max(self.table.len() - 1);
 
-            let matches = &self.quick_search.matches;
-            let matches = if matches.is_empty() {
-                self.table.display_data[lower_bound..upper_bound]
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(index, entry)| {
-                        // todo return both columns
-                        if entry.texts[4].contains(query) {
-                            Some(QueryMatch::new(index, 4))
-                        } else if entry.texts[5].contains(query) {
-                            Some(QueryMatch::new(index, 5))
-                        } else {
-                            None
-                        }
-                    })
-                    .collect()
-            } else {
-                matches
-                    .iter()
-                    .filter(|qm| {
-                        let entry = &self.table.display_data[qm.index];
-                        entry.texts[qm.column].contains(query)
-                    })
-                    .cloned()
-                    .collect()
-            };
-            self.quick_search.matches = matches;
-        }
+        let instant = Instant::now();
+
+        self.quick_search.results = if self.quick_search.results.is_empty() {
+            self.table
+                .display_data
+                .iter()
+                .enumerate()
+                .filter_map(|(line, entry)| {
+                    let columns: Vec<MatchedColumn> = entry
+                        .texts
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(column, text)| {
+                            let positions: Vec<MatchedPosition> = text
+                                .match_indices(query)
+                                .map(|(index, _)| (index, index + query.len()))
+                                .collect();
+
+                            if positions.is_empty() {
+                                None
+                            } else {
+                                Some(MatchedColumn::new(column, &positions))
+                            }
+                        })
+                        .collect();
+
+                    if columns.is_empty() {
+                        None
+                    } else {
+                        Some(MatchedLine::new(line, &columns))
+                    }
+                })
+                .collect()
+        } else {
+            self.quick_search
+                .results
+                .iter()
+                .filter_map(|_| None)
+                .collect()
+        };
+
+        self.quick_search.elapsed = instant.elapsed().as_millis();
+
+        let number_of_results = self.quick_search.results.iter().fold(0, |acc, line| {
+            line.columns
+                .iter()
+                .fold(acc, |acc2, column| acc2 + column.positions.len())
+        });
+
+        self.quick_search
+            .results
+            .iter()
+            .flat_map(|line| {
+                let li = line.index;
+                line.columns.iter().flat_map(move |column| {
+                    let ci = column.index;
+                    column.positions.iter().map(move |pos| (li, ci, pos))
+                })
+            })
+            .enumerate()
+            .for_each(|(index, triple)| {
+                eprintln!(
+                    "{}/{} line {} column {} pos ({}:{})",
+                    index, number_of_results, triple.0, triple.1, triple.2 .0, triple.2 .1
+                );
+            });
+    }
+
+    fn jump_to_nearest_result(&mut self) {
+        // let selected = self.selected();
+        // self.quick_search.matches.range(())
     }
 }
 

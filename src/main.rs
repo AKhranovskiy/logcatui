@@ -19,6 +19,7 @@ mod display_data;
 mod log_table;
 mod logentry;
 mod loglevel;
+mod search;
 mod text_utils;
 
 const COLUMN_NUMBER: usize = 6;
@@ -66,7 +67,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         while (poll(Duration::from_millis(0)))? {
             if let Event::Key(event) = read()? {
-                app.input(&event)
+                app.input(&event);
             }
         }
 

@@ -51,15 +51,15 @@ impl<'a> LogTable<'a> {
     }
 
     pub fn right(&mut self) {
-        self.column_offset = self.column_offset.saturating_add(1).min(COLUMN_NUMBER - 1)
+        self.column_offset = self.column_offset.saturating_add(1).min(COLUMN_NUMBER - 1);
     }
     pub fn left(&mut self) {
-        self.column_offset = self.column_offset.saturating_sub(1)
+        self.column_offset = self.column_offset.saturating_sub(1);
     }
 
     pub fn wrap_message(&mut self, index: usize) {
         if let Some(data) = self.display_data.get_mut(index) {
-            data.wrapped = !data.wrapped
+            data.wrapped = !data.wrapped;
         }
     }
 
