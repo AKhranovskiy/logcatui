@@ -79,35 +79,36 @@ impl<'a> DisplayData<'a> {
                         .enumerate()
                         .skip(column_offset)
                         .map(|(index, text)| {
-                            if let Some(columns) = search_results.map(|v| &v.columns) {
-                                if let Some(positions) = get_matched_positions(columns, index) {
-                                    let spans = split_string_at_indices(
-                                        text,
-                                        &positions
-                                            .iter()
-                                            .flat_map(|&p| [p.0, p.1])
-                                            .collect::<Vec<_>>(),
-                                    )
-                                    .chunks(2)
-                                    .flat_map(|chunks| {
-                                        [
-                                            chunks
-                                                .get(0)
-                                                .map_or_else(|| Span::raw(""), |&t| Span::raw(t)),
-                                            chunks.get(1).map_or_else(
-                                                || Span::raw(""),
-                                                |&t| Span::styled(t, highlight_style),
-                                            ),
-                                        ]
-                                    })
-                                    .collect::<Vec<_>>();
-                                    Cell::from(Text::from(Spans(spans)))
-                                } else {
-                                    Cell::from(text.as_str())
-                                }
-                            } else {
-                                Cell::from(text.as_str())
-                            }
+                            search_results
+                                .map(|v| &v.columns)
+                                .and_then(|columns| get_matched_positions(columns, index))
+                                .map_or_else(
+                                    || Cell::from(text.as_str()),
+                                    |positions| {
+                                        let spans = split_string_at_indices(
+                                            text,
+                                            &positions
+                                                .iter()
+                                                .flat_map(|&p| [p.0, p.1])
+                                                .collect::<Vec<_>>(),
+                                        )
+                                        .chunks(2)
+                                        .flat_map(|chunks| {
+                                            [
+                                                chunks.get(0).map_or_else(
+                                                    || Span::raw(""),
+                                                    |&t| Span::raw(t),
+                                                ),
+                                                chunks.get(1).map_or_else(
+                                                    || Span::raw(""),
+                                                    |&t| Span::styled(t, highlight_style),
+                                                ),
+                                            ]
+                                        })
+                                        .collect::<Vec<_>>();
+                                        Cell::from(Text::from(Spans(spans)))
+                                    },
+                                )
                         }),
                 ),
                 1,
