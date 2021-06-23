@@ -17,7 +17,7 @@ impl MatchedColumn {
     }
 }
 
-#[derive(Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Clone, Eq, PartialEq, PartialOrd, Ord)]
 pub struct MatchedLine {
     pub(crate) index: usize,
     pub(crate) columns: BTreeSet<MatchedColumn>,

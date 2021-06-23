@@ -130,7 +130,11 @@ impl<'a> App<'a> {
             .skip(start)
             .take(end - start)
             .map(|(index, data)| {
-                let (row, height) = data.as_row(self.table.column_offset, available_message_width);
+                let (row, height) = data.as_row(
+                    self.table.column_offset,
+                    available_message_width,
+                    self.get_search_results_for_line(index),
+                );
                 if height > 1 {
                     row_heights.insert(index, height);
                     full_height -= height - 1;
@@ -458,6 +462,14 @@ impl<'a> App<'a> {
             .map(|line| line.index);
         self.select(prev);
     }
+
+    fn get_search_results_for_line(&self, line: usize) -> Option<&MatchedLine> {
+        let sentinel = |index: usize| MatchedLine::new(index, &[]);
+        self.quick_search
+            .results
+            .range((Included(sentinel(line)), Excluded(sentinel(line + 1))))
+            .next()
+    }
 }
 
 fn with_ctrl(event: &KeyEvent) -> bool {
@@ -489,4 +501,32 @@ fn test_closest() {
     assert_eq!(Some(1), closest(0, Some(1), None));
     assert_eq!(Some(1), closest(0, None, Some(1)));
     assert_eq!(Some(1), closest(0, Some(1), Some(2)));
+}
+
+#[test]
+fn is_line_matched() {
+    use std::collections::BTreeSet;
+
+    let sut: BTreeSet<MatchedLine> = [
+        MatchedLine::new(1, &[]),
+        MatchedLine::new(3, &[]),
+        MatchedLine::new(5, &[]),
+    ]
+    .as_ref()
+    .iter()
+    .cloned()
+    .collect();
+
+    let sentinel = |index: usize| MatchedLine::new(index, &[]);
+    let lookup = |index: usize| {
+        sut.range((Included(sentinel(index)), Excluded(sentinel(index + 1))))
+            .next()
+            .map(|line| line.index)
+    };
+
+    assert_eq!(None, lookup(0));
+    assert_eq!(Some(1), lookup(1));
+    assert_eq!(None, lookup(2));
+    assert_eq!(Some(3), lookup(3));
+    assert_eq!(None, lookup(6));
 }

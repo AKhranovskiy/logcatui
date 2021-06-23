@@ -1,10 +1,16 @@
+use std::collections::BTreeSet;
+
 use num_traits::AsPrimitive;
+use tui::style::{Modifier, Style};
+use tui::text::{Span, Spans, Text};
 use tui::widgets::Cell;
 use tui::widgets::Row;
 use unicode_width::UnicodeWidthStr;
 
 use crate::logentry::LogEntry;
+use crate::search::{MatchedColumn, MatchedLine, MatchedPosition};
 use crate::text_utils::create_text;
+use crate::text_utils::split_string_at_indices;
 use crate::COLUMN_NUMBER;
 
 #[allow(dead_code)]
@@ -40,7 +46,12 @@ impl<'a> DisplayData<'a> {
         }
     }
 
-    pub fn as_row(&self, column_offset: usize, available_message_width: usize) -> (Row, usize) {
+    pub fn as_row(
+        &self,
+        column_offset: usize,
+        available_message_width: usize,
+        search_results: Option<&MatchedLine>,
+    ) -> (Row, usize) {
         if self.wrapped && self.widths.last().unwrap() > &available_message_width {
             let message = self.texts.last().unwrap();
             let text = create_text(message, available_message_width);
@@ -59,15 +70,61 @@ impl<'a> DisplayData<'a> {
                 height,
             )
         } else {
+            let highlight_style = Style::default().add_modifier(Modifier::REVERSED);
+
             (
                 Row::new(
                     self.texts
                         .iter()
+                        .enumerate()
                         .skip(column_offset)
-                        .map(|t| Cell::from(t.as_str())),
+                        .map(|(index, text)| {
+                            if let Some(columns) = search_results.map(|v| &v.columns) {
+                                if let Some(positions) = get_matched_positions(columns, index) {
+                                    let spans = split_string_at_indices(
+                                        text,
+                                        &positions
+                                            .iter()
+                                            .flat_map(|&p| [p.0, p.1])
+                                            .collect::<Vec<_>>(),
+                                    )
+                                    .chunks(2)
+                                    .flat_map(|chunks| {
+                                        [
+                                            chunks
+                                                .get(0)
+                                                .map_or_else(|| Span::raw(""), |&t| Span::raw(t)),
+                                            chunks.get(1).map_or_else(
+                                                || Span::raw(""),
+                                                |&t| Span::styled(t, highlight_style),
+                                            ),
+                                        ]
+                                    })
+                                    .collect::<Vec<_>>();
+                                    Cell::from(Text::from(Spans(spans)))
+                                } else {
+                                    Cell::from(text.as_str())
+                                }
+                            } else {
+                                Cell::from(text.as_str())
+                            }
+                        }),
                 ),
                 1,
             )
         }
     }
+}
+
+fn get_matched_positions(
+    columns: &BTreeSet<MatchedColumn>,
+    index: usize,
+) -> Option<Vec<&MatchedPosition>> {
+    use std::ops::Bound::{Excluded, Included};
+    let sentinel = |index: usize| MatchedColumn::new(index, &[]);
+    columns
+        .range((Included(&sentinel(index)), Excluded(&sentinel(index + 1))))
+        .next()
+        .map(|column| &column.positions)
+        .map(|positions| positions.iter().collect())
 }

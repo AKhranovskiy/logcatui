@@ -41,7 +41,7 @@ fn wrap_indices(text: &str, max_width: usize) -> Vec<usize> {
     lines
 }
 
-fn split_string_at_indices<'a>(s: &'a str, indices: &[usize]) -> Vec<&'a str> {
+pub(crate) fn split_string_at_indices<'a>(s: &'a str, indices: &[usize]) -> Vec<&'a str> {
     assert!(*indices.iter().max().unwrap_or(&0) < s.len());
 
     let mut off = 0_usize;
