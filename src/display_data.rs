@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use num_traits::AsPrimitive;
-use tui::style::{Modifier, Style};
+use tui::style::{Color, Style};
 use tui::text::{Span, Spans, Text};
 use tui::widgets::Cell;
 use tui::widgets::Row;
@@ -70,7 +70,7 @@ impl<'a> DisplayData<'a> {
                 height,
             )
         } else {
-            let highlight_style = Style::default().add_modifier(Modifier::REVERSED);
+            let highlight_style = Style::default().fg(Color::Yellow).bg(Color::Blue);
 
             (
                 Row::new(
@@ -90,6 +90,7 @@ impl<'a> DisplayData<'a> {
                                             &positions
                                                 .iter()
                                                 .flat_map(|&p| [p.0, p.1])
+                                                .filter(|pos| pos < &text.len())
                                                 .collect::<Vec<_>>(),
                                         )
                                         .chunks(2)

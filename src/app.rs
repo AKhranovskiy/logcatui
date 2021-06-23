@@ -384,27 +384,29 @@ impl<'a> App<'a> {
 
         self.quick_search.elapsed = instant.elapsed().as_millis();
 
-        let triples: Vec<(usize, usize, (usize, usize))> = self
-            .quick_search
-            .results
-            .iter()
-            .flat_map(|line| {
-                let li = line.index;
-                line.columns.iter().flat_map(move |column| {
-                    let ci = column.index;
-                    column.positions.iter().map(move |pos| (li, ci, *pos))
+        if false {
+            let triples: Vec<(usize, usize, (usize, usize))> = self
+                .quick_search
+                .results
+                .iter()
+                .flat_map(|line| {
+                    let li = line.index;
+                    line.columns.iter().flat_map(move |column| {
+                        let ci = column.index;
+                        column.positions.iter().map(move |pos| (li, ci, *pos))
+                    })
                 })
-            })
-            .collect();
+                .collect();
 
-        let number_of_results = triples.len();
+            let number_of_results = triples.len();
 
-        triples.iter().enumerate().for_each(|(index, triple)| {
-            eprintln!(
-                "{}/{} line {} column {} pos ({}:{})",
-                index, number_of_results, triple.0, triple.1, triple.2 .0, triple.2 .1
-            );
-        });
+            triples.iter().enumerate().for_each(|(index, triple)| {
+                eprintln!(
+                    "{}/{} line {} column {} pos ({}:{})",
+                    index, number_of_results, triple.0, triple.1, triple.2 .0, triple.2 .1
+                );
+            });
+        }
     }
 
     fn select(&mut self, line: Option<usize>) {
