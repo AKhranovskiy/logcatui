@@ -68,7 +68,7 @@ impl<'a> App<'a> {
     }
 
     fn layout<B: Backend>(&self, f: &mut Frame<B>) -> AppLayout {
-        let quick_search_height: u16 = match self.quick_search.mode {
+        let quick_search_height: u16 = match self.quick_search.mode() {
             Mode::Off => 0,
             Mode::Input | Mode::Iteration => 1,
         };
@@ -162,7 +162,7 @@ impl<'a> App<'a> {
 
         let table_rendered = instant.elapsed();
 
-        match self.quick_search.mode {
+        match self.quick_search.mode() {
             Mode::Off => {}
             Mode::Input => {
                 let block = Paragraph::new(format!("/ {}", self.quick_search.input))
@@ -190,7 +190,7 @@ impl<'a> App<'a> {
             self.fps.tick(),
             table_built.as_millis(),
             (table_rendered - table_built).as_millis(),
-            match self.quick_search.mode {
+            match self.quick_search.mode() {
                 Mode::Off | Mode::Input => "".to_string(),
                 Mode::Iteration => format!(
                     "found {} matches of \"{}\" for {}ms",
@@ -286,8 +286,7 @@ impl<'a> App<'a> {
             KeyCode::Home => self.table.column_offset = 0,
             KeyCode::End => self.table.column_offset = COLUMN_NUMBER - 1,
             KeyCode::Char('/') => {
-                self.quick_search.mode = Mode::Input;
-                self.quick_search.results.clear();
+                self.quick_search.set_mode(Mode::Input);
             }
             _ => {}
         }
@@ -295,18 +294,16 @@ impl<'a> App<'a> {
     pub fn input(&mut self, event: &KeyEvent) {
         self.input_event_message.clear();
 
-        match self.quick_search.mode {
+        match self.quick_search.mode() {
             Mode::Off => self.regular_input(event),
             Mode::Input => match event.code {
-                KeyCode::Esc => {
-                    self.quick_search.mode = Mode::Off;
-                    self.quick_search.input.clear();
-                }
+                KeyCode::Esc => self.quick_search.set_mode(Mode::Off),
                 KeyCode::Enter => {
                     if self.quick_search.input.is_empty() {
-                        self.quick_search.mode = Mode::Off;
+                        self.quick_search.set_mode(Mode::Off);
                     } else {
-                        self.quick_search.mode = Mode::Iteration;
+                        self.quick_search.set_mode(Mode::Iteration);
+                        // todo move to search
                         self.update_results();
                         self.jump_to_nearest_result();
                     }
@@ -321,7 +318,7 @@ impl<'a> App<'a> {
             },
             Mode::Iteration => match event.code {
                 KeyCode::Esc => {
-                    self.quick_search.mode = Mode::Off;
+                    self.quick_search.set_mode(Mode::Off);
                 }
                 KeyCode::Char('n') => {
                     self.jump_to_next_result();
