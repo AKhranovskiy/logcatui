@@ -15,9 +15,8 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::log_table::LogTable;
 use crate::logentry::LogEntry;
-use crate::search::{
-    MatchedColumn, MatchedLine, MatchedPosition, QuickSearchMode, QuickSearchState,
-};
+use crate::search::matches::{Match, MatchedColumn, MatchedLine, MatchedPosition};
+use crate::search::search::{QuickSearchMode, QuickSearchState};
 use crate::{COLUMN_HEADERS, COLUMN_NUMBER};
 
 lazy_static! {
@@ -370,7 +369,7 @@ impl<'a> App<'a> {
                     if columns.is_empty() {
                         None
                     } else {
-                        Some(MatchedLine::new(line, &columns))
+                        Some(MatchedLine::new(line, columns.into()))
                     }
                 })
                 .collect()
@@ -422,7 +421,7 @@ impl<'a> App<'a> {
 
     fn jump_to_nearest_result(&mut self) {
         let selected = self.selected();
-        let sentinel = MatchedLine::new(selected, &[]);
+        let sentinel = MatchedLine::sentinel(selected);
         let lower = self
             .quick_search
             .results
@@ -441,7 +440,7 @@ impl<'a> App<'a> {
 
     fn jump_to_next_result(&mut self) {
         let selected = self.selected();
-        let sentinel = MatchedLine::new(selected, &[]);
+        let sentinel = MatchedLine::sentinel(selected);
         let mut range = self
             .quick_search
             .results
@@ -455,7 +454,7 @@ impl<'a> App<'a> {
 
     fn jump_to_previous_result(&mut self) {
         let selected = self.selected();
-        let sentinel = MatchedLine::new(selected, &[]);
+        let sentinel = MatchedLine::sentinel(selected);
         let prev = self
             .quick_search
             .results
@@ -466,7 +465,7 @@ impl<'a> App<'a> {
     }
 
     fn get_search_results_for_line(&self, line: usize) -> Option<&MatchedLine> {
-        let sentinel = |index: usize| MatchedLine::new(index, &[]);
+        let sentinel = |index: usize| MatchedLine::sentinel(index);
         self.quick_search
             .results
             .range((Included(sentinel(line)), Excluded(sentinel(line + 1))))
@@ -510,16 +509,16 @@ fn is_line_matched() {
     use std::collections::BTreeSet;
 
     let sut: BTreeSet<MatchedLine> = [
-        MatchedLine::new(1, &[]),
-        MatchedLine::new(3, &[]),
-        MatchedLine::new(5, &[]),
+        MatchedLine::sentinel(1),
+        MatchedLine::sentinel(3),
+        MatchedLine::sentinel(5),
     ]
     .as_ref()
     .iter()
     .cloned()
     .collect();
 
-    let sentinel = |index: usize| MatchedLine::new(index, &[]);
+    let sentinel = |index: usize| MatchedLine::sentinel(index);
     let lookup = |index: usize| {
         sut.range((Included(sentinel(index)), Excluded(sentinel(index + 1))))
             .next()

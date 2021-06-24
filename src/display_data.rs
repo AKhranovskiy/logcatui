@@ -8,7 +8,7 @@ use tui::widgets::Row;
 use unicode_width::UnicodeWidthStr;
 
 use crate::logentry::LogEntry;
-use crate::search::{MatchedColumn, MatchedLine, MatchedPosition};
+use crate::search::matches::{MatchedColumn, MatchedColumns, MatchedLine, MatchedPosition};
 use crate::text_utils::create_text;
 use crate::text_utils::split_string_at_indices;
 use crate::COLUMN_NUMBER;
@@ -118,15 +118,13 @@ impl<'a> DisplayData<'a> {
     }
 }
 
-fn get_matched_positions(
-    columns: &BTreeSet<MatchedColumn>,
-    index: usize,
-) -> Option<Vec<&MatchedPosition>> {
-    use std::ops::Bound::{Excluded, Included};
-    let sentinel = |index: usize| MatchedColumn::new(index, &[]);
-    columns
-        .range((Included(&sentinel(index)), Excluded(&sentinel(index + 1))))
-        .next()
-        .map(|column| &column.positions)
-        .map(|positions| positions.iter().collect())
+fn get_matched_positions(columns: &MatchedColumns, index: usize) -> Option<Vec<&MatchedPosition>> {
+    // use std::ops::Bound::{Excluded, Included};
+    // let sentinel = |index: usize| MatchedColumn::new(index, &[]);
+    // columns
+    //     .range((Included(&sentinel(index)), Excluded(&sentinel(index + 1))))
+    //     .next()
+    //     .map(|column| &column.positions)
+    //     .map(|positions| positions.iter().collect())
+    None
 }
