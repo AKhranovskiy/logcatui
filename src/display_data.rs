@@ -1,5 +1,3 @@
-use std::collections::BTreeSet;
-
 use num_traits::AsPrimitive;
 use tui::style::{Color, Style};
 use tui::text::{Span, Spans, Text};
@@ -8,7 +6,7 @@ use tui::widgets::Row;
 use unicode_width::UnicodeWidthStr;
 
 use crate::logentry::LogEntry;
-use crate::search::matches::{MatchedColumn, MatchedColumns, MatchedLine, MatchedPosition};
+use crate::search::matches::{MatchedLine, Matches};
 use crate::text_utils::create_text;
 use crate::text_utils::split_string_at_indices;
 use crate::COLUMN_NUMBER;
@@ -80,14 +78,15 @@ impl<'a> DisplayData<'a> {
                         .skip(column_offset)
                         .map(|(index, text)| {
                             search_results
-                                .map(|v| &v.columns)
-                                .and_then(|columns| get_matched_positions(columns, index))
+                                .map(MatchedLine::items)
+                                .and_then(|columns| columns.exact(index))
                                 .map_or_else(
                                     || Cell::from(text.as_str()),
-                                    |positions| {
+                                    |column| {
                                         let spans = split_string_at_indices(
                                             text,
-                                            &positions
+                                            &column
+                                                .positions
                                                 .iter()
                                                 .flat_map(|&p| [p.0, p.1])
                                                 .filter(|pos| pos < &text.len())
@@ -116,15 +115,4 @@ impl<'a> DisplayData<'a> {
             )
         }
     }
-}
-
-fn get_matched_positions(columns: &MatchedColumns, index: usize) -> Option<Vec<&MatchedPosition>> {
-    // use std::ops::Bound::{Excluded, Included};
-    // let sentinel = |index: usize| MatchedColumn::new(index, &[]);
-    // columns
-    //     .range((Included(&sentinel(index)), Excluded(&sentinel(index + 1))))
-    //     .next()
-    //     .map(|column| &column.positions)
-    //     .map(|positions| positions.iter().collect())
-    None
 }

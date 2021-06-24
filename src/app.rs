@@ -389,8 +389,8 @@ impl<'a> App<'a> {
                 .results
                 .iter()
                 .flat_map(|line| {
-                    let li = line.index;
-                    line.columns.iter().flat_map(move |column| {
+                    let li = line.index();
+                    line.iter().flat_map(move |column| {
                         let ci = column.index;
                         column.positions.iter().map(move |pos| (li, ci, *pos))
                     })
@@ -427,13 +427,13 @@ impl<'a> App<'a> {
             .results
             .range((Unbounded, Included(&sentinel)))
             .next_back()
-            .map(|line| line.index);
+            .map(|line| line.index());
         let upper = self
             .quick_search
             .results
             .range((Included(&sentinel), Unbounded))
             .next()
-            .map(|line| line.index);
+            .map(|line| line.index());
 
         self.select(closest(selected, lower, upper));
     }
@@ -447,7 +447,7 @@ impl<'a> App<'a> {
             .range((Excluded(&sentinel), Unbounded));
 
         if range.advance_by(1).is_ok() {
-            let next = range.next().map(|line| line.index);
+            let next = range.next().map(|line| line.index());
             self.select(next);
         }
     }
@@ -460,7 +460,7 @@ impl<'a> App<'a> {
             .results
             .range((Unbounded, Excluded(&sentinel)))
             .next_back()
-            .map(|line| line.index);
+            .map(|line| line.index());
         self.select(prev);
     }
 
@@ -502,32 +502,4 @@ fn test_closest() {
     assert_eq!(Some(1), closest(0, Some(1), None));
     assert_eq!(Some(1), closest(0, None, Some(1)));
     assert_eq!(Some(1), closest(0, Some(1), Some(2)));
-}
-
-#[test]
-fn is_line_matched() {
-    use std::collections::BTreeSet;
-
-    let sut: BTreeSet<MatchedLine> = [
-        MatchedLine::sentinel(1),
-        MatchedLine::sentinel(3),
-        MatchedLine::sentinel(5),
-    ]
-    .as_ref()
-    .iter()
-    .cloned()
-    .collect();
-
-    let sentinel = |index: usize| MatchedLine::sentinel(index);
-    let lookup = |index: usize| {
-        sut.range((Included(sentinel(index)), Excluded(sentinel(index + 1))))
-            .next()
-            .map(|line| line.index)
-    };
-
-    assert_eq!(None, lookup(0));
-    assert_eq!(Some(1), lookup(1));
-    assert_eq!(None, lookup(2));
-    assert_eq!(Some(3), lookup(3));
-    assert_eq!(None, lookup(6));
 }

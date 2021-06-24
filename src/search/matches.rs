@@ -6,7 +6,7 @@ pub trait Match: Ord + PartialOrd + Eq + PartialEq {
     fn sentinel(index: usize) -> Self;
 }
 
-trait Matches<T: Match> {
+pub(crate) trait Matches<T: Match> {
     fn nearest(&self, index: usize) -> Option<&T>;
     fn previous(&self, index: usize) -> Option<&T>;
     fn next(&self, index: usize) -> Option<&T>;
@@ -45,13 +45,23 @@ impl Matches<MatchedLine> for MatchedLines {
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Ord)]
 pub struct MatchedLine {
-    pub(crate) index: usize,
-    pub(crate) columns: MatchedColumns,
+    index: usize,
+    columns: MatchedColumns,
 }
 
 impl MatchedLine {
     pub(crate) fn new(index: usize, columns: MatchedColumns) -> Self {
         MatchedLine { index, columns }
+    }
+
+    #[inline]
+    pub(crate) fn iter(&self) -> Iter<MatchedColumn> {
+        self.columns.iter()
+    }
+
+    #[inline]
+    pub(crate) fn items(&self) -> &MatchedColumns {
+        &self.columns
     }
 }
 
