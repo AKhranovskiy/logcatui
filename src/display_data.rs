@@ -1,5 +1,4 @@
 use num_traits::AsPrimitive;
-use tui::style::{Color, Style};
 use tui::text::{Span, Spans, Text};
 use tui::widgets::Cell;
 use tui::widgets::Row;
@@ -7,19 +6,18 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::logentry::LogEntry;
 use crate::search::matches::{MatchedLine, Matches};
+use crate::styles::STYLE_SEARCH_HIGHLIGHT;
 use crate::text_utils::create_text;
 use crate::text_utils::split_string_at_indices;
 use crate::COLUMN_NUMBER;
 
-#[allow(dead_code)]
-pub struct DisplayData<'a> {
-    log_entry: &'a LogEntry,
+pub struct DisplayData {
     pub(crate) texts: Vec<String>,
     pub(crate) widths: Vec<usize>,
     pub(crate) wrapped: bool,
 }
 
-impl<'a> DisplayData<'a> {
+impl<'a> DisplayData {
     pub(crate) fn new(entry: &'a LogEntry) -> Self {
         let texts = vec![
             entry.timestamp.format("%F %H:%M:%S%.3f").to_string(),
@@ -37,7 +35,6 @@ impl<'a> DisplayData<'a> {
             .collect();
 
         DisplayData {
-            log_entry: entry,
             texts,
             widths,
             wrapped: false,
@@ -68,8 +65,6 @@ impl<'a> DisplayData<'a> {
                 height,
             )
         } else {
-            let highlight_style = Style::default().fg(Color::Yellow).bg(Color::Blue);
-
             (
                 Row::new(
                     self.texts
@@ -100,7 +95,7 @@ impl<'a> DisplayData<'a> {
                                                 ),
                                                 chunks.get(1).map_or_else(
                                                     || Span::raw(""),
-                                                    |&t| Span::styled(t, highlight_style),
+                                                    |&t| Span::styled(t, *STYLE_SEARCH_HIGHLIGHT),
                                                 ),
                                             ]
                                         })

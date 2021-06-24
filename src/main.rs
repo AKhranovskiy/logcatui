@@ -21,6 +21,7 @@ mod log_table;
 mod logentry;
 mod loglevel;
 mod search;
+mod styles;
 mod text_utils;
 
 const COLUMN_NUMBER: usize = 6;

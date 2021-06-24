@@ -6,7 +6,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use num_traits::AsPrimitive;
 use tui::backend::Backend;
 use tui::layout::{Alignment, Constraint, Direction::Vertical, Layout, Rect};
-use tui::style::{Color, Modifier, Style};
+use tui::style::{Color, Style};
 use tui::widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState};
 use tui::Frame;
 use unicode_width::UnicodeWidthStr;
@@ -16,18 +16,8 @@ use crate::logentry::LogEntry;
 use crate::search::matches::{Match, Matches};
 use crate::search::state::State;
 use crate::search::QuickSearchMode;
+use crate::styles::{STYLE_HEADER, STYLE_QUICK_SEARCH, STYLE_SELECTED_ROW};
 use crate::{COLUMN_HEADERS, COLUMN_NUMBER};
-
-lazy_static! {
-    static ref STYLE_HEADER: Style = Style::default()
-        .add_modifier(Modifier::BOLD)
-        .fg(Color::White)
-        .bg(Color::DarkGray);
-    static ref STYLE_SELECTED_ROW: Style = Style::default().add_modifier(Modifier::REVERSED);
-    static ref STYLE_QUICK_SEARCH: Style = Style::default()
-        .fg(Color::Yellow)
-        .add_modifier(Modifier::BOLD);
-}
 
 pub struct App<'a> {
     pub should_quit: bool,
