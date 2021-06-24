@@ -391,8 +391,8 @@ impl<'a> App<'a> {
                 .flat_map(|line| {
                     let li = line.index();
                     line.iter().flat_map(move |column| {
-                        let ci = column.index;
-                        column.positions.iter().map(move |pos| (li, ci, *pos))
+                        let ci = column.index();
+                        column.iter().map(move |pos| (li, ci, *pos))
                     })
                 })
                 .collect();

@@ -18,6 +18,25 @@ pub struct MatchedLines {
     lines: BTreeSet<MatchedLine>,
 }
 
+#[derive(Clone, Eq, PartialEq, PartialOrd, Ord)]
+pub struct MatchedLine {
+    index: usize,
+    columns: MatchedColumns,
+}
+
+#[derive(Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct MatchedColumns {
+    columns: BTreeSet<MatchedColumn>,
+}
+
+pub type MatchedPosition = (usize, usize);
+
+#[derive(Clone, Eq, PartialEq, PartialOrd, Ord)]
+pub struct MatchedColumn {
+    index: usize,
+    positions: BTreeSet<MatchedPosition>,
+}
+
 impl MatchedLines {
     #[inline]
     pub fn len(&self) -> usize {
@@ -40,19 +59,46 @@ impl MatchedLines {
     }
 }
 
-impl From<&[MatchedLine]> for MatchedLines {
-    fn from(lines: &[MatchedLine]) -> Self {
-        Self {
-            lines: lines.iter().cloned().collect(),
-        }
+impl MatchedLine {
+    pub(crate) fn new(index: usize, columns: MatchedColumns) -> Self {
+        MatchedLine { index, columns }
+    }
+
+    #[inline]
+    pub(crate) fn iter(&self) -> Iter<MatchedColumn> {
+        self.columns.iter()
+    }
+
+    #[inline]
+    pub(crate) fn items(&self) -> &MatchedColumns {
+        &self.columns
     }
 }
 
-impl From<Vec<MatchedLine>> for MatchedLines {
-    fn from(lines: Vec<MatchedLine>) -> Self {
-        Self {
-            lines: lines.iter().cloned().collect(),
+impl MatchedColumns {
+    #[inline]
+    pub fn iter(&self) -> Iter<MatchedColumn> {
+        self.columns.iter()
+    }
+}
+
+impl MatchedColumn {
+    pub(crate) fn new(index: usize, positions: &[MatchedPosition]) -> Self {
+        MatchedColumn {
+            index,
+            positions: positions.iter().copied().collect(),
         }
+    }
+
+    #[allow(dead_code)]
+    #[inline]
+    fn index(&self) -> usize {
+        self.index
+    }
+
+    #[inline]
+    pub fn iter(&self) -> Iter<MatchedPosition> {
+        self.positions.iter()
     }
 }
 
@@ -74,61 +120,6 @@ impl Matches<MatchedLine> for MatchedLines {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, PartialOrd, Ord)]
-pub struct MatchedLine {
-    index: usize,
-    columns: MatchedColumns,
-}
-
-impl MatchedLine {
-    pub(crate) fn new(index: usize, columns: MatchedColumns) -> Self {
-        MatchedLine { index, columns }
-    }
-
-    #[inline]
-    pub(crate) fn iter(&self) -> Iter<MatchedColumn> {
-        self.columns.iter()
-    }
-
-    #[inline]
-    pub(crate) fn items(&self) -> &MatchedColumns {
-        &self.columns
-    }
-}
-
-impl Match for MatchedLine {
-    fn index(&self) -> usize {
-        self.index
-    }
-
-    fn sentinel(index: usize) -> Self {
-        Self {
-            index,
-            columns: MatchedColumns::default(),
-        }
-    }
-}
-
-#[derive(Default, Clone, Eq, PartialEq, Ord, PartialOrd)]
-pub struct MatchedColumns {
-    columns: BTreeSet<MatchedColumn>,
-}
-
-impl From<Vec<MatchedColumn>> for MatchedColumns {
-    fn from(columns: Vec<MatchedColumn>) -> Self {
-        Self {
-            columns: columns.iter().cloned().collect(),
-        }
-    }
-}
-
-impl MatchedColumns {
-    #[inline]
-    pub fn iter(&self) -> Iter<MatchedColumn> {
-        self.columns.iter()
-    }
-}
-
 impl Matches<MatchedColumn> for MatchedColumns {
     fn nearest(&self, index: usize) -> Option<&MatchedColumn> {
         implementation::nearest_match(&self.columns, index)
@@ -147,17 +138,15 @@ impl Matches<MatchedColumn> for MatchedColumns {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, PartialOrd, Ord)]
-pub struct MatchedColumn {
-    pub(crate) index: usize,
-    pub(crate) positions: BTreeSet<MatchedPosition>,
-}
+impl Match for MatchedLine {
+    fn index(&self) -> usize {
+        self.index
+    }
 
-impl MatchedColumn {
-    pub(crate) fn new(index: usize, positions: &[MatchedPosition]) -> Self {
-        MatchedColumn {
+    fn sentinel(index: usize) -> Self {
+        Self {
             index,
-            positions: positions.iter().copied().collect(),
+            columns: MatchedColumns::default(),
         }
     }
 }
@@ -175,7 +164,21 @@ impl Match for MatchedColumn {
     }
 }
 
-pub type MatchedPosition = (usize, usize);
+impl From<Vec<MatchedLine>> for MatchedLines {
+    fn from(lines: Vec<MatchedLine>) -> Self {
+        Self {
+            lines: lines.iter().cloned().collect(),
+        }
+    }
+}
+
+impl From<Vec<MatchedColumn>> for MatchedColumns {
+    fn from(columns: Vec<MatchedColumn>) -> Self {
+        Self {
+            columns: columns.iter().cloned().collect(),
+        }
+    }
+}
 
 mod implementation {
     use std::cmp::Ordering;

@@ -86,7 +86,6 @@ impl<'a> DisplayData<'a> {
                                         let spans = split_string_at_indices(
                                             text,
                                             &column
-                                                .positions
                                                 .iter()
                                                 .flat_map(|&p| [p.0, p.1])
                                                 .filter(|pos| pos < &text.len())
