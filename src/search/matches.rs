@@ -13,12 +13,43 @@ pub(crate) trait Matches<T: Match> {
     fn exact(&self, index: usize) -> Option<&T>;
 }
 
+#[derive(Default)]
 pub struct MatchedLines {
     lines: BTreeSet<MatchedLine>,
 }
 
+impl MatchedLines {
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.lines.len()
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.lines.is_empty()
+    }
+
+    #[inline]
+    pub fn clear(&mut self) {
+        self.lines.clear();
+    }
+
+    #[inline]
+    pub fn iter(&self) -> Iter<MatchedLine> {
+        self.lines.iter()
+    }
+}
+
 impl From<&[MatchedLine]> for MatchedLines {
     fn from(lines: &[MatchedLine]) -> Self {
+        Self {
+            lines: lines.iter().cloned().collect(),
+        }
+    }
+}
+
+impl From<Vec<MatchedLine>> for MatchedLines {
+    fn from(lines: Vec<MatchedLine>) -> Self {
         Self {
             lines: lines.iter().cloned().collect(),
         }

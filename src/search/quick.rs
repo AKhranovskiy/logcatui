@@ -1,11 +1,9 @@
-use std::collections::BTreeSet;
-
-use crate::search::matches::MatchedLine;
+use crate::search::matches::MatchedLines;
 
 pub struct State {
     pub(crate) mode: Mode,
     pub(crate) input: String,
-    pub(crate) results: BTreeSet<MatchedLine>,
+    pub(crate) results: MatchedLines,
     pub(crate) elapsed: u128,
 }
 
@@ -14,7 +12,7 @@ impl Default for State {
         Self {
             mode: Mode::Off,
             input: String::new(),
-            results: BTreeSet::new(),
+            results: MatchedLines::default(),
             elapsed: 0,
         }
     }

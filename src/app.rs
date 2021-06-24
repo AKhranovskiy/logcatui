@@ -1,6 +1,4 @@
-use std::cmp::Ordering;
 use std::collections::BTreeMap;
-use std::ops::Bound::{Excluded, Included, Unbounded};
 use std::time::Instant;
 
 use clipboard::{ClipboardContext, ClipboardProvider};
@@ -15,7 +13,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::log_table::LogTable;
 use crate::logentry::LogEntry;
-use crate::search::matches::{Match, MatchedColumn, MatchedLine, MatchedPosition};
+use crate::search::matches::{Match, MatchedColumn, MatchedLine, MatchedPosition, Matches};
 use crate::search::quick::{Mode, State};
 use crate::{COLUMN_HEADERS, COLUMN_NUMBER};
 
@@ -132,7 +130,7 @@ impl<'a> App<'a> {
                 let (row, height) = data.as_row(
                     self.table.column_offset,
                     available_message_width,
-                    self.get_search_results_for_line(index),
+                    self.quick_search.results.exact(index),
                 );
                 if height > 1 {
                     row_heights.insert(index, height);
@@ -372,13 +370,15 @@ impl<'a> App<'a> {
                         Some(MatchedLine::new(line, columns.into()))
                     }
                 })
-                .collect()
+                .collect::<Vec<_>>()
+                .into()
         } else {
             self.quick_search
                 .results
                 .iter()
                 .filter_map(|_| None)
-                .collect()
+                .collect::<Vec<_>>()
+                .into()
         };
 
         self.quick_search.elapsed = instant.elapsed().as_millis();
@@ -420,86 +420,33 @@ impl<'a> App<'a> {
     }
 
     fn jump_to_nearest_result(&mut self) {
-        let selected = self.selected();
-        let sentinel = MatchedLine::sentinel(selected);
-        let lower = self
-            .quick_search
-            .results
-            .range((Unbounded, Included(&sentinel)))
-            .next_back()
-            .map(|line| line.index());
-        let upper = self
-            .quick_search
-            .results
-            .range((Included(&sentinel), Unbounded))
-            .next()
-            .map(|line| line.index());
-
-        self.select(closest(selected, lower, upper));
+        self.select(
+            self.quick_search
+                .results
+                .nearest(self.selected())
+                .map(|m| m.index()),
+        );
     }
 
     fn jump_to_next_result(&mut self) {
-        let selected = self.selected();
-        let sentinel = MatchedLine::sentinel(selected);
-        let mut range = self
-            .quick_search
-            .results
-            .range((Excluded(&sentinel), Unbounded));
-
-        if range.advance_by(1).is_ok() {
-            let next = range.next().map(|line| line.index());
-            self.select(next);
-        }
+        self.select(
+            self.quick_search
+                .results
+                .next(self.selected())
+                .map(|m| m.index()),
+        );
     }
 
     fn jump_to_previous_result(&mut self) {
-        let selected = self.selected();
-        let sentinel = MatchedLine::sentinel(selected);
-        let prev = self
-            .quick_search
-            .results
-            .range((Unbounded, Excluded(&sentinel)))
-            .next_back()
-            .map(|line| line.index());
-        self.select(prev);
-    }
-
-    fn get_search_results_for_line(&self, line: usize) -> Option<&MatchedLine> {
-        let sentinel = |index: usize| MatchedLine::sentinel(index);
-        self.quick_search
-            .results
-            .range((Included(sentinel(line)), Excluded(sentinel(line + 1))))
-            .next()
+        self.select(
+            self.quick_search
+                .results
+                .previous(self.selected())
+                .map(|m| m.index()),
+        );
     }
 }
 
 fn with_ctrl(event: &KeyEvent) -> bool {
     event.modifiers.contains(KeyModifiers::CONTROL)
-}
-
-fn closest(target: usize, lower: Option<usize>, upper: Option<usize>) -> Option<usize> {
-    let ld = distance(target, lower.unwrap_or(usize::MAX));
-    let ud = distance(target, upper.unwrap_or(usize::MAX));
-
-    if ld < ud {
-        lower
-    } else {
-        upper
-    }
-}
-
-fn distance(a: usize, b: usize) -> usize {
-    match a.cmp(&b) {
-        Ordering::Less => b - a,
-        Ordering::Equal => 0,
-        Ordering::Greater => a - b,
-    }
-}
-
-#[test]
-fn test_closest() {
-    assert_eq!(None, closest(0, None, None));
-    assert_eq!(Some(1), closest(0, Some(1), None));
-    assert_eq!(Some(1), closest(0, None, Some(1)));
-    assert_eq!(Some(1), closest(0, Some(1), Some(2)));
 }
