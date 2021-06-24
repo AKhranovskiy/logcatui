@@ -43,6 +43,7 @@ impl MatchedLines {
         self.lines.len()
     }
 
+    #[allow(dead_code)]
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.lines.is_empty()

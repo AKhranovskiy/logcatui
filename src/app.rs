@@ -13,7 +13,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::log_table::LogTable;
 use crate::logentry::LogEntry;
-use crate::search::matches::{Match, MatchedColumn, MatchedLine, MatchedPosition, Matches};
+use crate::search::matches::{Match, Matches};
 use crate::search::quick::{Mode, State};
 use crate::{COLUMN_HEADERS, COLUMN_NUMBER};
 
@@ -130,7 +130,7 @@ impl<'a> App<'a> {
                 let (row, height) = data.as_row(
                     self.table.column_offset,
                     available_message_width,
-                    self.quick_search.results.exact(index),
+                    self.quick_search.results().exact(index),
                 );
                 if height > 1 {
                     row_heights.insert(index, height);
@@ -194,7 +194,7 @@ impl<'a> App<'a> {
                 Mode::Off | Mode::Input => "".to_string(),
                 Mode::Iteration => format!(
                     "found {} matches of \"{}\" for {}ms",
-                    self.quick_search.results.len(),
+                    self.quick_search.results().len(),
                     self.quick_search.input(),
                     self.quick_search.elapsed
                 ),
@@ -332,58 +332,21 @@ impl<'a> App<'a> {
     }
 
     fn update_results(&mut self) {
-        let query = self.quick_search.input();
-        assert!(!query.is_empty());
-
         let instant = Instant::now();
 
-        self.quick_search.results = if self.quick_search.results.is_empty() {
+        self.quick_search.update(
             self.table
                 .display_data
                 .iter()
-                .enumerate()
-                .filter_map(|(line, entry)| {
-                    let columns: Vec<MatchedColumn> = entry
-                        .texts
-                        .iter()
-                        .enumerate()
-                        .filter_map(|(column, text)| {
-                            let positions: Vec<MatchedPosition> = text
-                                .match_indices(query)
-                                .map(|(index, _)| (index, index + query.len()))
-                                .collect();
-
-                            if positions.is_empty() {
-                                None
-                            } else {
-                                Some(MatchedColumn::new(column, &positions))
-                            }
-                        })
-                        .collect();
-
-                    if columns.is_empty() {
-                        None
-                    } else {
-                        Some(MatchedLine::new(line, columns.into()))
-                    }
-                })
-                .collect::<Vec<_>>()
-                .into()
-        } else {
-            self.quick_search
-                .results
-                .iter()
-                .filter_map(|_| None)
-                .collect::<Vec<_>>()
-                .into()
-        };
+                .map(|data| data.texts.iter().map(String::as_str)),
+        );
 
         self.quick_search.elapsed = instant.elapsed().as_millis();
 
         if false {
             let triples: Vec<(usize, usize, (usize, usize))> = self
                 .quick_search
-                .results
+                .results()
                 .iter()
                 .flat_map(|line| {
                     let li = line.index();
@@ -419,7 +382,7 @@ impl<'a> App<'a> {
     fn jump_to_nearest_result(&mut self) {
         self.select(
             self.quick_search
-                .results
+                .results()
                 .nearest(self.selected())
                 .map(|m| m.index()),
         );
@@ -428,7 +391,7 @@ impl<'a> App<'a> {
     fn jump_to_next_result(&mut self) {
         self.select(
             self.quick_search
-                .results
+                .results()
                 .next(self.selected())
                 .map(|m| m.index()),
         );
@@ -437,7 +400,7 @@ impl<'a> App<'a> {
     fn jump_to_previous_result(&mut self) {
         self.select(
             self.quick_search
-                .results
+                .results()
                 .previous(self.selected())
                 .map(|m| m.index()),
         );
