@@ -2,17 +2,25 @@ use crate::search::matches::MatchedLines;
 
 pub struct State {
     mode: Mode,
-    pub(crate) input: String,
+    input: String,
     pub(crate) results: MatchedLines,
     pub(crate) elapsed: u128,
 }
 
 impl State {
-    pub(crate) fn mode(&self) -> Mode {
+    pub fn input(&self) -> &String {
+        &self.input
+    }
+
+    pub fn input_mut(&mut self) -> &mut String {
+        &mut self.input
+    }
+
+    pub fn mode(&self) -> Mode {
         self.mode
     }
 
-    pub(crate) fn set_mode(&mut self, mode: Mode) {
+    pub fn set_mode(&mut self, mode: Mode) {
         if self.mode == Mode::Off && mode == Mode::Input {
             self.results.clear();
         }

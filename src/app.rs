@@ -165,10 +165,10 @@ impl<'a> App<'a> {
         match self.quick_search.mode() {
             Mode::Off => {}
             Mode::Input => {
-                let block = Paragraph::new(format!("/ {}", self.quick_search.input))
+                let block = Paragraph::new(format!("/ {}", self.quick_search.input()))
                     .block(Block::default().borders(Borders::NONE));
                 f.render_widget(block, layout.quick_search);
-                let w: u16 = self.quick_search.input.width().as_();
+                let w: u16 = self.quick_search.input().width().as_();
                 f.set_cursor(
                     // Put cursor past the end of the input text
                     layout.quick_search.x + 1 + w + 1,
@@ -176,7 +176,7 @@ impl<'a> App<'a> {
                 );
             }
             Mode::Iteration => {
-                let block = Paragraph::new(format!("/{}", self.quick_search.input))
+                let block = Paragraph::new(format!("/{}", self.quick_search.input()))
                     .style(*STYLE_QUICK_SEARCH)
                     .block(Block::default().borders(Borders::NONE));
                 f.render_widget(block, layout.quick_search);
@@ -195,7 +195,7 @@ impl<'a> App<'a> {
                 Mode::Iteration => format!(
                     "found {} matches of \"{}\" for {}ms",
                     self.quick_search.results.len(),
-                    self.quick_search.input,
+                    self.quick_search.input(),
                     self.quick_search.elapsed
                 ),
             }
@@ -299,7 +299,7 @@ impl<'a> App<'a> {
             Mode::Input => match event.code {
                 KeyCode::Esc => self.quick_search.set_mode(Mode::Off),
                 KeyCode::Enter => {
-                    if self.quick_search.input.is_empty() {
+                    if self.quick_search.input().is_empty() {
                         self.quick_search.set_mode(Mode::Off);
                     } else {
                         self.quick_search.set_mode(Mode::Iteration);
@@ -309,10 +309,10 @@ impl<'a> App<'a> {
                     }
                 }
                 KeyCode::Backspace => {
-                    self.quick_search.input.clear();
+                    self.quick_search.input_mut().pop();
                 }
                 KeyCode::Char(c) => {
-                    self.quick_search.input.push(c);
+                    self.quick_search.input_mut().push(c);
                 }
                 _ => {}
             },
@@ -332,7 +332,7 @@ impl<'a> App<'a> {
     }
 
     fn update_results(&mut self) {
-        let query = &self.quick_search.input;
+        let query = self.quick_search.input();
         assert!(!query.is_empty());
 
         let instant = Instant::now();
