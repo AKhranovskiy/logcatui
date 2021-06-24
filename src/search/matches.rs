@@ -63,7 +63,7 @@ impl Match for MatchedLine {
     fn sentinel(index: usize) -> Self {
         Self {
             index,
-            columns: Default::default(),
+            columns: MatchedColumns::default(),
         }
     }
 }
@@ -90,19 +90,19 @@ impl MatchedColumns {
 
 impl Matches<MatchedColumn> for MatchedColumns {
     fn nearest(&self, index: usize) -> Option<&MatchedColumn> {
-        todo!()
+        implementation::nearest_match(&self.columns, index)
     }
 
     fn previous(&self, index: usize) -> Option<&MatchedColumn> {
-        todo!()
+        implementation::previous_match(&self.columns, index)
     }
 
     fn next(&self, index: usize) -> Option<&MatchedColumn> {
-        todo!()
+        implementation::next_match(&self.columns, index)
     }
 
     fn exact(&self, index: usize) -> Option<&MatchedColumn> {
-        todo!()
+        implementation::exact_match(&self.columns, index)
     }
 }
 

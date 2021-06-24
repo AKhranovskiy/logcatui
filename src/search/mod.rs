@@ -1,2 +1,2 @@
 pub mod matches;
-pub mod search;
+pub mod quick;
