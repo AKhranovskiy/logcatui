@@ -302,10 +302,7 @@ impl<'a> App<'a> {
                     if self.quick_search.input().is_empty() {
                         self.quick_search.set_mode(Mode::Off);
                     } else {
-                        self.quick_search.set_mode(Mode::Iteration);
-                        // todo move to search
-                        self.update_results();
-                        self.jump_to_nearest_result();
+                        self.iterate_over_search_results();
                     }
                 }
                 KeyCode::Backspace => {
@@ -331,7 +328,18 @@ impl<'a> App<'a> {
         }
     }
 
-    fn update_results(&mut self) {
+    fn jump_to_nearest_result(&mut self) {
+        self.select(
+            self.quick_search
+                .results()
+                .nearest(self.selected())
+                .map(|m| m.index()),
+        );
+    }
+
+    fn iterate_over_search_results(&mut self) {
+        self.quick_search.set_mode(Mode::Iteration);
+
         let instant = Instant::now();
 
         self.quick_search.update(
@@ -343,29 +351,7 @@ impl<'a> App<'a> {
 
         self.quick_search.elapsed = instant.elapsed().as_millis();
 
-        if false {
-            let triples: Vec<(usize, usize, (usize, usize))> = self
-                .quick_search
-                .results()
-                .iter()
-                .flat_map(|line| {
-                    let li = line.index();
-                    line.iter().flat_map(move |column| {
-                        let ci = column.index();
-                        column.iter().map(move |pos| (li, ci, *pos))
-                    })
-                })
-                .collect();
-
-            let number_of_results = triples.len();
-
-            triples.iter().enumerate().for_each(|(index, triple)| {
-                eprintln!(
-                    "{}/{} line {} column {} pos ({}:{})",
-                    index, number_of_results, triple.0, triple.1, triple.2 .0, triple.2 .1
-                );
-            });
-        }
+        self.jump_to_nearest_result();
     }
 
     fn select(&mut self, line: Option<usize>) {
@@ -377,15 +363,6 @@ impl<'a> App<'a> {
                 self.state.select(Some(0));
             }
         }
-    }
-
-    fn jump_to_nearest_result(&mut self) {
-        self.select(
-            self.quick_search
-                .results()
-                .nearest(self.selected())
-                .map(|m| m.index()),
-        );
     }
 
     fn jump_to_next_result(&mut self) {

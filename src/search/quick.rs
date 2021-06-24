@@ -1,4 +1,4 @@
-use crate::search::matches::{MatchedColumn, MatchedLine, MatchedLines, MatchedPosition};
+use crate::search::matches::{Match, MatchedColumn, MatchedLine, MatchedLines, MatchedPosition};
 
 pub struct State {
     mode: Mode,
@@ -12,7 +12,7 @@ impl State {
         &mut self,
         texts: impl Iterator<Item = (impl Iterator<Item = &'a str> + 'a)>,
     ) -> usize {
-        if query.is_empty() {
+        if self.input.is_empty() {
             self.results.clear();
             0
         } else {
@@ -43,6 +43,8 @@ impl State {
                 .collect::<Vec<_>>()
                 .into();
 
+            self.debug_print_results();
+
             self.results.len()
         }
     }
@@ -70,17 +72,32 @@ impl State {
         if self.mode == Mode::Input && mode == Mode::Off {
             self.input.clear();
         }
-        if self.mode == Mode::Input && mode == Mode::Iteration {
-            // update results
-        }
-        // if self.quick_search.input.is_empty() {
-        //     self.quick_search.mode = Mode::Off;
-        // } else {
-        //     self.quick_search.mode = Mode::Iteration;
-        //     self.update_results();
-        //     self.jump_to_nearest_result();
-        // }
         self.mode = mode;
+    }
+
+    fn debug_print_results(&self) {
+        if false {
+            let triples: Vec<(usize, usize, (usize, usize))> = self
+                .results()
+                .iter()
+                .flat_map(|line| {
+                    let li = line.index();
+                    line.iter().flat_map(move |column| {
+                        let ci = column.index();
+                        column.iter().map(move |pos| (li, ci, *pos))
+                    })
+                })
+                .collect();
+
+            let number_of_results = triples.len();
+
+            triples.iter().enumerate().for_each(|(index, triple)| {
+                eprintln!(
+                    "{}/{} line {} column {} pos ({}:{})",
+                    index, number_of_results, triple.0, triple.1, triple.2 .0, triple.2 .1
+                );
+            });
+        }
     }
 }
 
