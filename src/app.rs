@@ -14,7 +14,8 @@ use unicode_width::UnicodeWidthStr;
 use crate::log_table::LogTable;
 use crate::logentry::LogEntry;
 use crate::search::matches::{Match, Matches};
-use crate::search::quick::{Mode, State};
+use crate::search::state::State;
+use crate::search::QuickSearchMode;
 use crate::{COLUMN_HEADERS, COLUMN_NUMBER};
 
 lazy_static! {
@@ -69,8 +70,8 @@ impl<'a> App<'a> {
 
     fn layout<B: Backend>(&self, f: &mut Frame<B>) -> AppLayout {
         let quick_search_height: u16 = match self.quick_search.mode() {
-            Mode::Off => 0,
-            Mode::Input | Mode::Iteration => 1,
+            QuickSearchMode::Off => 0,
+            QuickSearchMode::Input | QuickSearchMode::Iteration => 1,
         };
 
         let chunks = Layout::default()
@@ -163,8 +164,8 @@ impl<'a> App<'a> {
         let table_rendered = instant.elapsed();
 
         match self.quick_search.mode() {
-            Mode::Off => {}
-            Mode::Input => {
+            QuickSearchMode::Off => {}
+            QuickSearchMode::Input => {
                 let block = Paragraph::new(format!("/ {}", self.quick_search.input()))
                     .block(Block::default().borders(Borders::NONE));
                 f.render_widget(block, layout.quick_search);
@@ -175,7 +176,7 @@ impl<'a> App<'a> {
                     layout.quick_search.y,
                 );
             }
-            Mode::Iteration => {
+            QuickSearchMode::Iteration => {
                 let block = Paragraph::new(format!("/{}", self.quick_search.input()))
                     .style(*STYLE_QUICK_SEARCH)
                     .block(Block::default().borders(Borders::NONE));
@@ -191,8 +192,8 @@ impl<'a> App<'a> {
             table_built.as_millis(),
             (table_rendered - table_built).as_millis(),
             match self.quick_search.mode() {
-                Mode::Off | Mode::Input => "".to_string(),
-                Mode::Iteration => format!(
+                QuickSearchMode::Off | QuickSearchMode::Input => "".to_string(),
+                QuickSearchMode::Iteration => format!(
                     "found {} matches of \"{}\" for {}ms",
                     self.quick_search.results().len(),
                     self.quick_search.input(),
@@ -264,7 +265,7 @@ impl<'a> App<'a> {
             KeyCode::Char('Y') => self.copy_message(),
             KeyCode::Home => self.table.column_offset = 0,
             KeyCode::End => self.table.column_offset = COLUMN_NUMBER - 1,
-            KeyCode::Char('/') => self.quick_search.set_mode(Mode::Input),
+            KeyCode::Char('/') => self.quick_search.set_mode(QuickSearchMode::Input),
             _ => {}
         }
     }
@@ -295,12 +296,12 @@ impl<'a> App<'a> {
         self.input_event_message.clear();
 
         match self.quick_search.mode() {
-            Mode::Off => self.regular_input(event),
-            Mode::Input => match event.code {
-                KeyCode::Esc => self.quick_search.set_mode(Mode::Off),
+            QuickSearchMode::Off => self.regular_input(event),
+            QuickSearchMode::Input => match event.code {
+                KeyCode::Esc => self.quick_search.set_mode(QuickSearchMode::Off),
                 KeyCode::Enter => {
                     if self.quick_search.input().is_empty() {
-                        self.quick_search.set_mode(Mode::Off);
+                        self.quick_search.set_mode(QuickSearchMode::Off);
                     } else {
                         self.iterate_over_search_results();
                     }
@@ -313,9 +314,9 @@ impl<'a> App<'a> {
                 }
                 _ => {}
             },
-            Mode::Iteration => match event.code {
+            QuickSearchMode::Iteration => match event.code {
                 KeyCode::Esc => {
-                    self.quick_search.set_mode(Mode::Off);
+                    self.quick_search.set_mode(QuickSearchMode::Off);
                 }
                 KeyCode::Char('n') => {
                     self.jump_to_next_result();
@@ -338,7 +339,7 @@ impl<'a> App<'a> {
     }
 
     fn iterate_over_search_results(&mut self) {
-        self.quick_search.set_mode(Mode::Iteration);
+        self.quick_search.set_mode(QuickSearchMode::Iteration);
 
         let instant = Instant::now();
 

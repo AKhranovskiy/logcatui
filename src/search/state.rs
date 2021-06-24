@@ -1,7 +1,8 @@
 use crate::search::matches::{Match, MatchedColumn, MatchedLine, MatchedLines, MatchedPosition};
+use crate::search::QuickSearchMode;
 
 pub struct State {
-    mode: Mode,
+    mode: QuickSearchMode,
     input: String,
     results: MatchedLines,
     pub(crate) elapsed: u128,
@@ -61,15 +62,15 @@ impl State {
         &mut self.input
     }
 
-    pub fn mode(&self) -> Mode {
+    pub fn mode(&self) -> QuickSearchMode {
         self.mode
     }
 
-    pub fn set_mode(&mut self, mode: Mode) {
-        if self.mode == Mode::Off && mode == Mode::Input {
+    pub fn set_mode(&mut self, mode: QuickSearchMode) {
+        if self.mode == QuickSearchMode::Off && mode == QuickSearchMode::Input {
             self.results.clear();
         }
-        if self.mode == Mode::Input && mode == Mode::Off {
+        if self.mode == QuickSearchMode::Input && mode == QuickSearchMode::Off {
             self.input.clear();
         }
         self.mode = mode;
@@ -104,17 +105,10 @@ impl State {
 impl Default for State {
     fn default() -> Self {
         Self {
-            mode: Mode::Off,
+            mode: QuickSearchMode::Off,
             input: String::new(),
             results: MatchedLines::default(),
             elapsed: 0,
         }
     }
-}
-
-#[derive(Copy, Clone, Eq, PartialEq)]
-pub enum Mode {
-    Off,
-    Input,
-    Iteration,
 }
