@@ -245,29 +245,8 @@ impl<'a> App<'a> {
                     self.quit();
                 }
             }
-            KeyCode::Down => {
-                if let Some(selected) = self.state.selected() {
-                    if selected + 1 < self.height {
-                        self.state.select(Some(selected + 1));
-                    } else {
-                        let hiding_row_height =
-                            self.row_heights.get(&self.vertical_offset).unwrap_or(&1);
-                        self.vertical_offset += hiding_row_height;
-                    }
-                }
-            }
-            KeyCode::Up => {
-                if let Some(selected) = self.state.selected() {
-                    if selected == 0 {
-                        let appearing_row_height =
-                            self.row_heights.get(&self.vertical_offset).unwrap_or(&1);
-                        self.vertical_offset =
-                            self.vertical_offset.saturating_sub(*appearing_row_height);
-                    } else {
-                        self.state.select(Some(selected - 1));
-                    }
-                }
-            }
+            KeyCode::Down => self.select_next_line(),
+            KeyCode::Up => self.select_previous_line(),
             KeyCode::PageDown => {
                 for _ in 0..self.height {
                     self.regular_input(&KeyEvent::from(KeyCode::Down));
@@ -285,10 +264,31 @@ impl<'a> App<'a> {
             KeyCode::Char('Y') => self.copy_message(),
             KeyCode::Home => self.table.column_offset = 0,
             KeyCode::End => self.table.column_offset = COLUMN_NUMBER - 1,
-            KeyCode::Char('/') => {
-                self.quick_search.set_mode(Mode::Input);
-            }
+            KeyCode::Char('/') => self.quick_search.set_mode(Mode::Input),
             _ => {}
+        }
+    }
+
+    fn select_next_line(&mut self) {
+        if let Some(selected) = self.state.selected() {
+            if selected + 1 < self.height {
+                self.state.select(Some(selected + 1));
+            } else {
+                let hiding_row_height = self.row_heights.get(&self.vertical_offset).unwrap_or(&1);
+                self.vertical_offset += hiding_row_height;
+            }
+        }
+    }
+
+    fn select_previous_line(&mut self) {
+        if let Some(selected) = self.state.selected() {
+            if selected == 0 {
+                let appearing_row_height =
+                    self.row_heights.get(&self.vertical_offset).unwrap_or(&1);
+                self.vertical_offset = self.vertical_offset.saturating_sub(*appearing_row_height);
+            } else {
+                self.state.select(Some(selected - 1));
+            }
         }
     }
     pub fn input(&mut self, event: &KeyEvent) {
