@@ -250,7 +250,7 @@ impl<'a> App<'a> {
             }
             KeyCode::PageUp => {
                 if with_ctrl(event) {
-                    self.select(Some(0))
+                    self.select(Some(0));
                 } else {
                     for _ in 0..self.height {
                         self.regular_input(&KeyEvent::from(KeyCode::Up));
