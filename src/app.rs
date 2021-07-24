@@ -271,11 +271,13 @@ impl<'a> App<'a> {
 
     fn select_next_line(&mut self) {
         if let Some(selected) = self.state.selected() {
-            if selected + 1 < self.height {
-                self.state.select(Some(selected + 1));
-            } else {
-                let hiding_row_height = self.row_heights.get(&self.vertical_offset).unwrap_or(&1);
-                self.vertical_offset += hiding_row_height;
+            if selected + self.vertical_offset + 1 < self.table.len() {
+                if selected + 1 < self.height {
+                    self.state.select(Some(selected + 1));
+                } else {
+                    let hiding_row_height = self.row_heights.get(&self.vertical_offset).unwrap_or(&1);
+                    self.vertical_offset += hiding_row_height;
+                }
             }
         }
     }
