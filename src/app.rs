@@ -369,20 +369,20 @@ impl<'a> App<'a> {
 
     fn jump_to_next_result(&mut self) {
         let results = self.quick_search.results();
-        self.select(results
-                        .next(self.selected())
-                        .or_else(|| results.next(0))
-                        .map(|m| m.index()),
-        );
+        let next = results
+            .next(self.selected())
+            .or_else(|| results.next(0))
+            .map(|m| m.index());
+        self.select(next);
     }
 
     fn jump_to_previous_result(&mut self) {
         let results = self.quick_search.results();
-        self.select(results
-                        .previous(self.selected())
-                        .or_else(|| results.previous(self.table.len()))
-                        .map(|m| m.index()),
-        );
+        let prev = results
+            .previous(self.selected())
+            .or_else(|| results.previous(self.table.len()))
+            .map(|m| m.index());
+        self.select(prev);
     }
 }
 
