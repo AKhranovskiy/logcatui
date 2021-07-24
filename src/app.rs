@@ -5,20 +5,23 @@ use clipboard::{ClipboardContext, ClipboardProvider};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use num_traits::AsPrimitive;
 use tui::backend::Backend;
-use tui::Frame;
 use tui::layout::{Alignment, Constraint, Direction::Vertical, Layout, Rect};
 use tui::style::{Color, Style};
 use tui::widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState};
+use tui::Frame;
 use unicode_width::UnicodeWidthStr;
 
-use crate::{COLUMN_HEADERS, COLUMN_NUMBER};
 use crate::log_table::LogTable;
 use crate::logentry::LogEntry;
 use crate::loglevel::LogLevel;
 use crate::search::matches::{Match, Matches};
-use crate::search::QuickSearchMode;
 use crate::search::state::State;
-use crate::styles::{STYLE_HEADER, STYLE_LOGLEVEL_DEBUG, STYLE_LOGLEVEL_ERROR, STYLE_LOGLEVEL_INFO, STYLE_LOGLEVEL_VERBOSE, STYLE_LOGLEVEL_WARNING, STYLE_QUICK_SEARCH, STYLE_SELECTED_ROW};
+use crate::search::QuickSearchMode;
+use crate::styles::{
+    STYLE_HEADER, STYLE_LOGLEVEL_DEBUG, STYLE_LOGLEVEL_ERROR, STYLE_LOGLEVEL_INFO,
+    STYLE_LOGLEVEL_VERBOSE, STYLE_LOGLEVEL_WARNING, STYLE_QUICK_SEARCH, STYLE_SELECTED_ROW,
+};
+use crate::{COLUMN_HEADERS, COLUMN_NUMBER};
 
 pub struct App<'a> {
     pub should_quit: bool,
@@ -75,7 +78,7 @@ impl<'a> App<'a> {
                     Constraint::Length(quick_search_height),
                     Constraint::Length(1),
                 ]
-                    .as_ref(),
+                .as_ref(),
             )
             .split(f.size());
 
@@ -194,25 +197,27 @@ impl<'a> App<'a> {
                 ),
             }
         ))
-            .style(Style::default().fg(Color::LightCyan))
-            .alignment(Alignment::Left);
+        .style(Style::default().fg(Color::LightCyan))
+        .alignment(Alignment::Left);
 
         f.render_widget(bottom_block, layout.status_bar);
     }
 
     fn get_row_style(&self, index: usize) -> Style {
         if self.color_log_levels {
-            self.table.model
+            self.table
+                .model
                 .get(index)
-                .map_or(Style::default(),
-                        |entry| match entry.log_level {
-                            LogLevel::Verbose => *STYLE_LOGLEVEL_VERBOSE,
-                            LogLevel::Debug => *STYLE_LOGLEVEL_DEBUG,
-                            LogLevel::Warning => *STYLE_LOGLEVEL_WARNING,
-                            LogLevel::Info => *STYLE_LOGLEVEL_INFO,
-                            LogLevel::Error => *STYLE_LOGLEVEL_ERROR
-                        })
-        } else { Style::default() }
+                .map_or(Style::default(), |entry| match entry.log_level {
+                    LogLevel::Verbose => *STYLE_LOGLEVEL_VERBOSE,
+                    LogLevel::Debug => *STYLE_LOGLEVEL_DEBUG,
+                    LogLevel::Warning => *STYLE_LOGLEVEL_WARNING,
+                    LogLevel::Info => *STYLE_LOGLEVEL_INFO,
+                    LogLevel::Error => *STYLE_LOGLEVEL_ERROR,
+                })
+        } else {
+            Style::default()
+        }
     }
 
     fn copy_line(&mut self) {
@@ -294,7 +299,8 @@ impl<'a> App<'a> {
                 if selected + 1 < self.height {
                     self.state.select(Some(selected + 1));
                 } else {
-                    let hiding_row_height = self.row_heights.get(&self.vertical_offset).unwrap_or(&1);
+                    let hiding_row_height =
+                        self.row_heights.get(&self.vertical_offset).unwrap_or(&1);
                     self.vertical_offset += hiding_row_height;
                 }
             }
