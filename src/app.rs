@@ -368,21 +368,21 @@ impl<'a> App<'a> {
     }
 
     fn jump_to_next_result(&mut self) {
-        self.select(
-            self.quick_search
-                .results()
-                .next(self.selected())
-                .map(|m| m.index()),
-        );
+        let results = self.quick_search.results();
+        let next = results
+            .next(self.selected())
+            .or_else(|| results.next(0))
+            .map(|m| m.index());
+        self.select(next);
     }
 
     fn jump_to_previous_result(&mut self) {
-        self.select(
-            self.quick_search
-                .results()
-                .previous(self.selected())
-                .map(|m| m.index()),
-        );
+        let results = self.quick_search.results();
+        let prev = results
+            .previous(self.selected())
+            .or_else(|| results.previous(self.table.len()))
+            .map(|m| m.index());
+        self.select(prev);
     }
 }
 
