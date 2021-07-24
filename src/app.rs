@@ -14,10 +14,11 @@ use unicode_width::UnicodeWidthStr;
 use crate::{COLUMN_HEADERS, COLUMN_NUMBER};
 use crate::log_table::LogTable;
 use crate::logentry::LogEntry;
+use crate::loglevel::LogLevel;
 use crate::search::matches::{Match, Matches};
 use crate::search::QuickSearchMode;
 use crate::search::state::State;
-use crate::styles::{STYLE_HEADER, STYLE_QUICK_SEARCH, STYLE_SELECTED_ROW};
+use crate::styles::{STYLE_HEADER, STYLE_LOGLEVEL_DEBUG, STYLE_LOGLEVEL_ERROR, STYLE_LOGLEVEL_INFO, STYLE_LOGLEVEL_VERBOSE, STYLE_LOGLEVEL_WARNING, STYLE_QUICK_SEARCH, STYLE_SELECTED_ROW};
 
 pub struct App<'a> {
     pub should_quit: bool,
@@ -30,6 +31,7 @@ pub struct App<'a> {
     height: usize,
     vertical_offset: usize,
     row_heights: BTreeMap<usize, usize>,
+    color_log_levels: bool,
 }
 
 struct AppLayout {
@@ -55,6 +57,7 @@ impl<'a> App<'a> {
             height: 0,
             vertical_offset: 0,
             row_heights: BTreeMap::new(),
+            color_log_levels: false,
         }
     }
 
@@ -129,7 +132,7 @@ impl<'a> App<'a> {
                 } else if let Some(h) = row_heights.remove(&index) {
                     full_height += h - 1;
                 }
-                row
+                row.style(self.get_row_style(index))
             })
             .collect();
         self.row_heights = row_heights;
@@ -195,6 +198,21 @@ impl<'a> App<'a> {
             .alignment(Alignment::Left);
 
         f.render_widget(bottom_block, layout.status_bar);
+    }
+
+    fn get_row_style(&self, index: usize) -> Style {
+        if self.color_log_levels {
+            self.table.model
+                .get(index)
+                .map_or(Style::default(),
+                        |entry| match entry.log_level {
+                            LogLevel::Verbose => *STYLE_LOGLEVEL_VERBOSE,
+                            LogLevel::Debug => *STYLE_LOGLEVEL_DEBUG,
+                            LogLevel::Warning => *STYLE_LOGLEVEL_WARNING,
+                            LogLevel::Info => *STYLE_LOGLEVEL_INFO,
+                            LogLevel::Error => *STYLE_LOGLEVEL_ERROR
+                        })
+        } else { Style::default() }
     }
 
     fn copy_line(&mut self) {
@@ -265,6 +283,7 @@ impl<'a> App<'a> {
             KeyCode::Home => self.table.column_offset = 0,
             KeyCode::End => self.table.column_offset = COLUMN_NUMBER - 1,
             KeyCode::Char('/') => self.quick_search.set_mode(QuickSearchMode::Input),
+            KeyCode::F(2) => self.color_log_levels = !self.color_log_levels,
             _ => {}
         }
     }
@@ -293,6 +312,7 @@ impl<'a> App<'a> {
             }
         }
     }
+
     pub fn input(&mut self, event: &KeyEvent) {
         self.input_event_message.clear();
 
