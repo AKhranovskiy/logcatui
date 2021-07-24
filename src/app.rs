@@ -5,19 +5,19 @@ use clipboard::{ClipboardContext, ClipboardProvider};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use num_traits::AsPrimitive;
 use tui::backend::Backend;
+use tui::Frame;
 use tui::layout::{Alignment, Constraint, Direction::Vertical, Layout, Rect};
 use tui::style::{Color, Style};
 use tui::widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState};
-use tui::Frame;
 use unicode_width::UnicodeWidthStr;
 
+use crate::{COLUMN_HEADERS, COLUMN_NUMBER};
 use crate::log_table::LogTable;
 use crate::logentry::LogEntry;
 use crate::search::matches::{Match, Matches};
-use crate::search::state::State;
 use crate::search::QuickSearchMode;
+use crate::search::state::State;
 use crate::styles::{STYLE_HEADER, STYLE_QUICK_SEARCH, STYLE_SELECTED_ROW};
-use crate::{COLUMN_HEADERS, COLUMN_NUMBER};
 
 pub struct App<'a> {
     pub should_quit: bool,
@@ -72,7 +72,7 @@ impl<'a> App<'a> {
                     Constraint::Length(quick_search_height),
                     Constraint::Length(1),
                 ]
-                .as_ref(),
+                    .as_ref(),
             )
             .split(f.size());
 
@@ -191,8 +191,8 @@ impl<'a> App<'a> {
                 ),
             }
         ))
-        .style(Style::default().fg(Color::LightCyan))
-        .alignment(Alignment::Left);
+            .style(Style::default().fg(Color::LightCyan))
+            .alignment(Alignment::Left);
 
         f.render_widget(bottom_block, layout.status_bar);
     }
@@ -239,13 +239,22 @@ impl<'a> App<'a> {
             KeyCode::Down => self.select_next_line(),
             KeyCode::Up => self.select_previous_line(),
             KeyCode::PageDown => {
-                for _ in 0..self.height {
-                    self.regular_input(&KeyEvent::from(KeyCode::Down));
+                if with_ctrl(event) {
+                    self.select(Some(self.table.len().saturating_sub(self.height)));
+                    self.regular_input(&KeyEvent::from(KeyCode::PageDown));
+                } else {
+                    for _ in 0..self.height {
+                        self.regular_input(&KeyEvent::from(KeyCode::Down));
+                    }
                 }
             }
             KeyCode::PageUp => {
-                for _ in 0..self.height {
-                    self.regular_input(&KeyEvent::from(KeyCode::Up));
+                if with_ctrl(event) {
+                    self.select(Some(0))
+                } else {
+                    for _ in 0..self.height {
+                        self.regular_input(&KeyEvent::from(KeyCode::Up));
+                    }
                 }
             }
             KeyCode::Left => self.table.left(),
