@@ -5,9 +5,10 @@ use clipboard::{ClipboardContext, ClipboardProvider};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use num_traits::AsPrimitive;
 use tui::backend::Backend;
+use tui::layout::Margin;
 use tui::layout::{Alignment, Constraint, Direction::Vertical, Layout, Rect};
 use tui::style::{Color, Style};
-use tui::widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState};
+use tui::widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table, TableState};
 use tui::Frame;
 use unicode_width::UnicodeWidthStr;
 
@@ -35,6 +36,7 @@ pub struct App<'a> {
     vertical_offset: usize,
     row_heights: BTreeMap<usize, usize>,
     color_log_levels: bool,
+    filter_dialog_active: bool,
 }
 
 struct AppLayout {
@@ -61,6 +63,7 @@ impl<'a> App<'a> {
             vertical_offset: 0,
             row_heights: BTreeMap::new(),
             color_log_levels: false,
+            filter_dialog_active: false,
         }
     }
 
@@ -201,6 +204,8 @@ impl<'a> App<'a> {
         .alignment(Alignment::Left);
 
         f.render_widget(bottom_block, layout.status_bar);
+
+        self.show_filter_dialog(f);
     }
 
     fn get_row_style(&self, index: usize) -> Style {
@@ -289,6 +294,7 @@ impl<'a> App<'a> {
             KeyCode::End => self.table.column_offset = COLUMN_NUMBER - 1,
             KeyCode::Char('/') => self.quick_search.set_mode(QuickSearchMode::Input),
             KeyCode::F(2) => self.color_log_levels = !self.color_log_levels,
+            KeyCode::F(3) => self.filter_dialog_active = true,
             _ => {}
         }
     }
@@ -323,7 +329,16 @@ impl<'a> App<'a> {
         self.input_event_message.clear();
 
         match self.quick_search.mode() {
-            QuickSearchMode::Off => self.regular_input(event),
+            QuickSearchMode::Off => {
+                if self.filter_dialog_active {
+                    match event.code {
+                        KeyCode::Esc => self.filter_dialog_active = false,
+                        _ => {}
+                    }
+                } else {
+                    self.regular_input(event);
+                }
+            }
             QuickSearchMode::Input => match event.code {
                 KeyCode::Esc => self.quick_search.set_mode(QuickSearchMode::Off),
                 KeyCode::Enter => {
@@ -409,6 +424,19 @@ impl<'a> App<'a> {
             .or_else(|| results.previous(self.table.len()))
             .map(|m| m.index());
         self.select(prev);
+    }
+
+    fn show_filter_dialog<B: Backend>(&self, f: &mut Frame<B>) {
+        if self.filter_dialog_active {
+            let block = Block::default().title("Block").borders(Borders::ALL);
+            let area = f.size();
+            let area = area.inner(&Margin {
+                horizontal: area.width / 6,
+                vertical: area.height / 6,
+            });
+            f.render_widget(Clear, area); // <- this will clear/reset the area first
+            f.render_widget(block, area); // now render the block widget
+        }
     }
 }
 
