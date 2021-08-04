@@ -152,5 +152,5 @@ fn multiline_text() {
             "com.tomtom.ivi.functionaltest.frontend.alexa.test. Reason: package $",
             "android.intent.action.PACKAGE_REMOVED"
         )
-    )
+    );
 }

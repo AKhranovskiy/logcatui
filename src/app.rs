@@ -294,7 +294,9 @@ impl<'a> App<'a> {
             KeyCode::End => self.table.column_offset = COLUMN_NUMBER - 1,
             KeyCode::Char('/') => self.quick_search.set_mode(QuickSearchMode::Input),
             KeyCode::F(2) => self.color_log_levels = !self.color_log_levels,
+
             KeyCode::F(3) => self.filter_dialog_active = true,
+            KeyCode::Esc => self.filter_dialog_active = false,
             _ => {}
         }
     }
@@ -329,16 +331,7 @@ impl<'a> App<'a> {
         self.input_event_message.clear();
 
         match self.quick_search.mode() {
-            QuickSearchMode::Off => {
-                if self.filter_dialog_active {
-                    match event.code {
-                        KeyCode::Esc => self.filter_dialog_active = false,
-                        _ => {}
-                    }
-                } else {
-                    self.regular_input(event);
-                }
-            }
+            QuickSearchMode::Off => self.regular_input(event),
             QuickSearchMode::Input => match event.code {
                 KeyCode::Esc => self.quick_search.set_mode(QuickSearchMode::Off),
                 KeyCode::Enter => {
@@ -358,7 +351,11 @@ impl<'a> App<'a> {
             },
             QuickSearchMode::Iteration => match event.code {
                 KeyCode::Esc => {
-                    self.quick_search.set_mode(QuickSearchMode::Off);
+                    if self.filter_dialog_active {
+                        self.filter_dialog_active = false;
+                    } else {
+                        self.quick_search.set_mode(QuickSearchMode::Off)
+                    }
                 }
                 KeyCode::Char('n') => {
                     self.jump_to_next_result();
